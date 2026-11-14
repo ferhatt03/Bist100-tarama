@@ -1,58 +1,95 @@
 
-// ======================================
-// BIST100 TARAMA SISTEMI
-// SURUM 1 - TARAMA PANELI
-// ======================================
+const hisseler = [
+  "ASELS",
+  "TUPRS",
+  "BIMAS",
+  "THYAO",
+  "AKBNK"
+];
 
 const status = document.querySelector(".status");
 const detail = status?.nextElementSibling;
 
-async function startScanner() {
-  if (!status) return;
+async function bistTarama() {
+  status.textContent = "5 hisse taraniyor...";
 
-  status.textContent = "BIST100 tarama sistemi hazirlaniyor...";
+  let sonuc = [];
 
-  try {
-    const url = "https://query1.finance.yahoo.com/v8/finance/chart/THYAO.IS?range=1mo&interval=1h";
+  for (const hisse of hisseler) {
+    try {
+      const url =
+        "https://query1.finance.yahoo.com/v8/finance/chart/" +
+        hisse + ".IS?range=1mo&interval=1h";
 
-    const response = await fetch(
-      "https://proxy.cors.dev/" + url,
-      { credentials: "omit" }
-    );
+      const response = await fetch(
+        "https://proxy.cors.dev/" + url,
+        { credentials: "omit" }
+      );
 
-    if (!response.ok) {
-      throw new Error("Veri baglantisi basarisiz");
+      if (!response.ok) {
+        throw new Error("Veri alinamadi");
+      }
+
+      const data = await response.json();
+      const result = data.chart?.result?.[0];
+
+      if (!result) {
+        throw new Error("Veri bulunamadi");
+      }
+
+      const quote = result.indicators.quote[0];
+      const fiyatlar = quote.close.filter(
+        fiyat => Number.isFinite(fiyat)
+      );
+
+      if (!fiyatlar.length) {
+        throw new Error("Fiyat verisi bos");
+      }
+
+      const sonFiyat = fiyatlar[fiyatlar.length - 1];
+
+      sonuc.push({
+        hisse,
+        fiyat: sonFiyat,
+        veri: fiyatlar.length,
+        durum: "Basarili"
+      });
+
+    } catch (error) {
+      sonuc.push({
+        hisse,
+        durum: "Veri alinamadi"
+      });
     }
-
-    const data = await response.json();
-    const result = data.chart?.result?.[0];
-
-    if (!result) {
-      throw new Error("Hisse verisi bulunamadi");
-    }
-
-    const candles = result.timestamp || [];
-    const last = candles.length - 1;
-    const price = result.indicators.quote[0].close[last];
-
-    if (price == null) {
-      throw new Error("Son fiyat alinamadi");
-    }
-
-    status.textContent = "Veri baglantisi basarili!";
-
-    if (detail) {
-      detail.textContent =
-        "THYAO son fiyat: " +
-        price.toFixed(2) +
-        " TL | Saatlik veri: " +
-        candles.length;
-    }
-
-  } catch (error) {
-    status.textContent = "Baglanti hatasi!";
-    if (detail) detail.textContent = error.message;
   }
+
+  status.textContent = "Tarama tamamlandi!";
+
+  detail.textContent =
+    "Kontrol edilen hisse: " + hisseler.length;
+
+  let liste = document.getElementById("hisse-listesi");
+
+  if (!liste) {
+    liste = document.createElement("div");
+    liste.id = "hisse-listesi";
+    detail.after(liste);
+  }
+
+  liste.innerHTML = "";
+
+  sonuc.forEach(item => {
+    const satir = document.createElement("p");
+
+    satir.textContent = item.hisse + " | " +
+      (item.fiyat !== undefined
+        ? item.fiyat.toFixed(2) + " TL | Saatlik veri: " + item.veri
+        : item.durum);
+
+    liste.appendChild(satir);
+  });
+
+  console.log("BIST tarama sonucu:", sonuc);
 }
 
-startScanner();
+bistTarama();
