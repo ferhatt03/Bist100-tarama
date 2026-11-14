@@ -1,79 +1,58 @@
 
 // ======================================
-// BIST100 - YAHOO VERI BAGLANTISI TESTI
-// Ilk test: THYAO.IS
+// BIST100 TARAMA SISTEMI
+// SURUM 1 - TARAMA PANELI
 // ======================================
 
-async function testYahooConnection() {
-  const status = document.querySelector(".status");
-  const detail = status?.nextElementSibling;
+const status = document.querySelector(".status");
+const detail = status?.nextElementSibling;
 
-  status.textContent = "THYAO verisi aliniyor...";
+async function startScanner() {
+  if (!status) return;
+
+  status.textContent = "BIST100 tarama sistemi hazirlaniyor...";
 
   try {
-    const yahooUrl =
-      "https://query1.finance.yahoo.com/v8/finance/chart/THYAO.IS?range=1mo&interval=1h";
+    const url = "https://query1.finance.yahoo.com/v8/finance/chart/THYAO.IS?range=1mo&interval=1h";
 
     const response = await fetch(
-      "https://proxy.cors.dev/" + yahooUrl,
+      "https://proxy.cors.dev/" + url,
       { credentials: "omit" }
     );
 
     if (!response.ok) {
-      throw new Error(
-        response.headers.get("X-Cors-Error") ||
-        "HTTP " + response.status
-      );
+      throw new Error("Veri baglantisi basarisiz");
     }
 
     const data = await response.json();
     const result = data.chart?.result?.[0];
 
     if (!result) {
-      throw new Error(
-        data.chart?.error?.description || "Veri bulunamadi"
-      );
+      throw new Error("Hisse verisi bulunamadi");
     }
 
-    const timestamps = result.timestamp || [];
-    const quote = result.indicators.quote[0];
+    const candles = result.timestamp || [];
+    const last = candles.length - 1;
+    const price = result.indicators.quote[0].close[last];
 
-    const candles = timestamps.map((time, i) => ({
-      time: new Date(time * 1000),
-      open: quote.open[i],
-      high: quote.high[i],
-      low: quote.low[i],
-      close: quote.close[i],
-      volume: quote.volume[i]
-    })).filter(c => c.close !== null);
-
-    if (candles.length === 0) {
-      throw new Error("Gecerli fiyat verisi gelmedi");
+    if (price == null) {
+      throw new Error("Son fiyat alinamadi");
     }
-
-    const last = candles[candles.length - 1];
 
     status.textContent = "Veri baglantisi basarili!";
+
     if (detail) {
       detail.textContent =
-        "Hisse: THYAO.IS | Son fiyat: " +
-        last.close.toFixed(2) +
-        " " + (result.meta.currency || "TRY") +
-        " | Saatlik veri sayisi: " +
-        candles.length +
-        " | Son veri: " +
-        last.time.toLocaleString("tr-TR");
+        "THYAO son fiyat: " +
+        price.toFixed(2) +
+        " TL | Saatlik veri: " +
+        candles.length;
     }
-
-    console.log("Yahoo veri testi basarili:", candles);
 
   } catch (error) {
-    status.textContent = "Veri baglantisi hatasi!";
-    if (detail) {
-      detail.textContent = error.message;
-    }
-    console.error("Yahoo baglanti hatasi:", error);
+    status.textContent = "Baglanti hatasi!";
+    if (detail) detail.textContent = error.message;
   }
 }
 
-testYahooConnection();
+startScanner();
