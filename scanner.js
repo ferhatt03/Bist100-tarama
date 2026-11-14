@@ -1,128 +1,79 @@
 
 // ======================================
-// BIST100 TARAMA MOTORU
-// EMA 8 / EMA 20
-// ADX / DMI
-// RVOL
+// BIST100 - YAHOO VERI BAGLANTISI TESTI
+// Ilk test: THYAO.IS
 // ======================================
 
-function ema(values, period) {
-  if (values.length < period) return null;
+async function testYahooConnection() {
+  const status = document.querySelector(".status");
+  const detail = status?.nextElementSibling;
 
-  const multiplier = 2 / (period + 1);
-  let result = values[0];
+  status.textContent = "THYAO verisi aliniyor...";
 
-  for (let i = 1; i < values.length; i++) {
-    result = (values[i] - result) * multiplier + result;
-  }
+  try {
+    const yahooUrl =
+      "https://query1.finance.yahoo.com/v8/finance/chart/THYAO.IS?range=1mo&interval=1h";
 
-  return result;
-}
+    const response = await fetch(
+      "https://proxy.cors.dev/" + yahooUrl,
+      { credentials: "omit" }
+    );
 
-function average(values) {
-  if (!values.length) return null;
-  return values.reduce((a, b) => a + b, 0) / values.length;
-}
-
-function calculateRVOL(volumes, period = 20) {
-  if (volumes.length < period + 1) return null;
-
-  const current = volumes[volumes.length - 1];
-  const previous = volumes.slice(-period - 1, -1);
-
-  const avgVolume = average(previous);
-  return avgVolume > 0 ? current / avgVolume : null;
-}
-
-function calculateDMI(candles, period = 14) {
-  if (candles.length < period + 1) return null;
-
-  const tr = [];
-  const plusDM = [];
-  const minusDM = [];
-
-  for (let i = 1; i < candles.length; i++) {
-    const current = candles[i];
-    const previous = candles[i - 1];
-
-    const up = current.high - previous.high;
-    const down = previous.low - current.low;
-
-    tr.push(Math.max(
-      current.high - current.low,
-      Math.abs(current.high - previous.close),
-      Math.abs(current.low - previous.close)
-    ));
-
-    plusDM.push(up > down && up > 0 ? up : 0);
-    minusDM.push(down > up && down > 0 ? down : 0);
-  }
-
-  const smooth = (arr) => {
-    let value = arr.slice(0, period).reduce((a, b) => a + b, 0);
-
-    for (let i = period; i < arr.length; i++) {
-      value = value - value / period + arr[i];
+    if (!response.ok) {
+      throw new Error(
+        response.headers.get("X-Cors-Error") ||
+        "HTTP " + response.status
+      );
     }
 
-    return value;
-  };
+    const data = await response.json();
+    const result = data.chart?.result?.[0];
 
-  const trSum = smooth(tr);
-  if (!trSum) return null;
+    if (!result) {
+      throw new Error(
+        data.chart?.error?.description || "Veri bulunamadi"
+      );
+    }
 
-  const plusDI = 100 * smooth(plusDM) / trSum;
-  const minusDI = 100 * smooth(minusDM) / trSum;
+    const timestamps = result.timestamp || [];
+    const quote = result.indicators.quote[0];
 
-  const dx = 100 * Math.abs(plusDI - minusDI) /
-    Math.max(plusDI + minusDI, 0.000001);
+    const candles = timestamps.map((time, i) => ({
+      time: new Date(time * 1000),
+      open: quote.open[i],
+      high: quote.high[i],
+      low: quote.low[i],
+      close: quote.close[i],
+      volume: quote.volume[i]
+    })).filter(c => c.close !== null);
 
-  return {
-    plusDI,
-    minusDI,
-    dx
-  };
-}
+    if (candles.length === 0) {
+      throw new Error("Gecerli fiyat verisi gelmedi");
+    }
 
-// ANA HİSSE ANALİZİ
-function analyzeStock(symbol, candles) {
-  if (!Array.isArray(candles) || candles.length < 30) {
-    return { symbol, status: "Yetersiz veri" };
+    const last = candles[candles.length - 1];
+
+    status.textContent = "Veri baglantisi basarili!";
+    if (detail) {
+      detail.textContent =
+        "Hisse: THYAO.IS | Son fiyat: " +
+        last.close.toFixed(2) +
+        " " + (result.meta.currency || "TRY") +
+        " | Saatlik veri sayisi: " +
+        candles.length +
+        " | Son veri: " +
+        last.time.toLocaleString("tr-TR");
+    }
+
+    console.log("Yahoo veri testi basarili:", candles);
+
+  } catch (error) {
+    status.textContent = "Veri baglantisi hatasi!";
+    if (detail) {
+      detail.textContent = error.message;
+    }
+    console.error("Yahoo baglanti hatasi:", error);
   }
-
-  const closes = candles.map(c => c.close);
-  const volumes = candles.map(c => c.volume);
-
-  const ema8 = ema(closes.slice(-30), 8);
-  const ema20 = ema(closes.slice(-60), 20);
-
-  const dmi = calculateDMI(candles);
-  const rvol = calculateRVOL(volumes);
-
-  const price = closes[closes.length - 1];
-
-  const trendUp = ema8 > ema20;
-  const priceAboveEMA = price > ema8 && price > ema20;
-  const dmiPositive = dmi && dmi.plusDI > dmi.minusDI;
-  const volumeStrong = rvol !== null && rvol >= 1.2;
-
-  let score = 0;
-
-  if (trendUp) score += 25;
-  if (priceAboveEMA) score += 25;
-  if (dmiPositive) score += 25;
-  if (volumeStrong) score += 25;
-
-  return {
-    symbol,
-    price,
-    ema8,
-    ema20,
-    dmi,
-    rvol,
-    score,
-    status: score >= 75 ? "TAKİP" : "BEKLE"
-  };
 }
 
-console.log("BIST100 Tarama Motoru hazır.");
+testYahooConnection();
