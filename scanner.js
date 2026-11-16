@@ -7,7 +7,8 @@ const TKE_EMA_PERIYODU = 5;
 const VERI_ARALIGI = "3mo";
 
 function istanbulZaman(timestamp) {
-  if (!timestamp) return "-";
+  if (!Number.isFinite(timestamp)) return "-";
+
   return new Intl.DateTimeFormat("tr-TR", {
     timeZone: "Europe/Istanbul",
     year: "numeric",
@@ -18,24 +19,35 @@ function istanbulZaman(timestamp) {
   }).format(new Date(timestamp * 1000));
 }
 
-function sayi(n) {
-  return Number.isFinite(n) ? n : NaN;
+function formatFiyat(deger) {
+  return Number.isFinite(deger)
+    ? deger.toLocaleString("tr-TR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })
+    : "-";
+}
+
+function formatOran(deger) {
+  return Number.isFinite(deger) ? deger.toFixed(2) + "x" : "-";
 }
 
 function ortalama(dizi) {
   const gecerli = dizi.filter(Number.isFinite);
-  return gecerli.length ? gecerli.reduce((a, b) => a + b, 0) / gecerli.length : NaN;
+  return gecerli.length
+    ? gecerli.reduce((a, b) => a + b, 0) / gecerli.length
+    : NaN;
 }
 
 function ema(dizi, periyot) {
   const sonuc = Array(dizi.length).fill(NaN);
   const ilk = dizi.findIndex(Number.isFinite);
+
   if (ilk < 0 || dizi.length - ilk < periyot) return sonuc;
 
-  const baslangic = ortalama(dizi.slice(ilk, ilk + periyot));
-  if (!Number.isFinite(baslangic)) return sonuc;
+  let onceki = ortalama(dizi.slice(ilk, ilk + periyot));
+  if (!Number.isFinite(onceki)) return sonuc;
 
-  let onceki = baslangic;
   const ilkIndex = ilk + periyot - 1;
   sonuc[ilkIndex] = onceki;
 
@@ -43,17 +55,12 @@ function ema(dizi, periyot) {
 
   for (let i = ilkIndex + 1; i < dizi.length; i++) {
     if (!Number.isFinite(dizi[i])) continue;
+
     onceki = dizi[i] * carpan + onceki * (1 - carpan);
     sonuc[i] = onceki;
   }
-  return sonuc;
-}
 
-function sma(dizi, periyot) {
-  return dizi.map((_, i) => {
-    if (i < periyot - 1) return NaN;
-    return ortalama(dizi.slice(i - periyot + 1, i + 1));
-  });
+  return sonuc;
 }
 
 function rsi(dizi, periyot = 14) {
@@ -78,11 +85,12 @@ function rsi(dizi, periyot = 14) {
 
   for (let i = periyot + 1; i < dizi.length; i++) {
     const fark = dizi[i] - dizi[i - 1];
-    const yeniKazanc = Math.max(fark, 0);
-    const yeniKayip = Math.max(-fark, 0);
 
-    ortKazanc = (ortKazanc * (periyot - 1) + yeniKazanc) / periyot;
-    ortKayip = (ortKayip * (periyot - 1) + yeniKayip) / periyot;
+    ortKazanc =
+      (ortKazanc * (periyot - 1) + Math.max(fark, 0)) / periyot;
+
+    ortKayip =
+      (ortKayip * (periyot - 1) + Math.max(-fark, 0)) / periyot;
 
     sonuc[i] = ortKayip === 0
       ? 100
@@ -117,7 +125,9 @@ function cci(high, low, close, periyot = 14) {
     const ort = ortalama(parca);
     const sapma = ortalama(parca.map(x => Math.abs(x - ort)));
 
-    sonuc[i] = sapma === 0 ? 0 : (tp[i] - ort) / (0.015 * sapma);
+    sonuc[i] = sapma === 0
+      ? 0
+      : (tp[i] - ort) / (0.015 * sapma);
   }
 
   return sonuc;
@@ -280,29 +290,16 @@ function seviyeYukariKesisim(dizi, seviye, bakis = KESISIM_BAKIS) {
   return false;
 }
 
-function formatFiyat(deger) {
-  return Number.isFinite(deger)
-    ? deger.toLocaleString("tr-TR", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })
-    : "-";
-}
-
-function formatOran(deger) {
-  return Number.isFinite(deger)
-    ? deger.toFixed(2) + "x"
-    : "-";
-}
-
 async function hisseAnaliz(sembol) {
   const yahooSembol = sembol + ".IS";
+
   const url =
     "https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/" +
     yahooSembol +
-    "?range=" + VERI_ARALIGI + "&interval=1h";
+    "?range=" + VERI_ARALIGI +
+    "&interval=1h&includePrePost=false&_=" + Date.now();
 
-  const cevap = await fetch(url);
+  const cevap = await fetch(url, { cache: "no-store" });
 
   if (!cevap.ok) {
     throw new Error("Yahoo veri isteği başarısız: " + cevap.status);
@@ -344,12 +341,14 @@ async function hisseAnaliz(sembol) {
       high: yuksek,
       low: dusuk,
       close: kapanis,
-      volume: Number.isFinite(hacim) ? hacim : 0
+      volume: Number.isFinite(hacim) ? hacim : NaN
     });
   }
 
-  // Sinyaller yalnızca kapanmış saatlik mumlarla hesaplanır.
-  const mumlar = hamMumlar.filter(m => m.zaman + PERIYOT <= simdi);
+  // Henüz bir saatlik periyodu tamamlanmamış mumları sinyal hesabına katma.
+  const mumlar = hamMumlar.filter(
+    m => m.zaman + PERIYOT <= simdi
+  );
 
   if (mumlar.length < 40) {
     throw new Error("Yeterli kapanmış saatlik mum yok: " + mumlar.length);
@@ -358,11 +357,12 @@ async function hisseAnaliz(sembol) {
   const close = mumlar.map(m => m.close);
   const high = mumlar.map(m => m.high);
   const low = mumlar.map(m => m.low);
-  const volume = mumlar.map(m => m.volume);
+  const volume = mumlar.map(m =>
+    Number.isFinite(m.volume) ? m.volume : 0
+  );
 
   const ema8 = ema(close, 8);
   const ema20 = ema(close, 20);
-
   const { tke, tkeEma } = tkeHesapla(high, low, close, volume);
 
   const son = mumlar.length - 1;
@@ -373,32 +373,46 @@ async function hisseAnaliz(sembol) {
 
   const tkeYon =
     Number.isFinite(sonTke) && Number.isFinite(oncekiTke)
-      ? sonTke > oncekiTke ? "YUKARI" : sonTke < oncekiTke ? "AŞAĞI" : "YATAY"
+      ? sonTke > oncekiTke
+        ? "YUKARI"
+        : sonTke < oncekiTke
+          ? "AŞAĞI"
+          : "YATAY"
       : "HESAPLANAMADI";
 
   const emaKesim = yukariKesisim(ema8, ema20);
   const tkeSifirYukariKesisim = sifirYukariKesisim(tke);
   const tke20Kesisim = seviyeYukariKesisim(tke, 20);
 
-  // Ana sinyal: EMA8/20 yukarı kesişimi VE TKE sıfır yukarı kesişimi.
   const anaSinyal = emaKesim && tkeSifirYukariKesisim;
 
   const sonHacim = sonMum.volume;
   const oncekiHacimler = volume.slice(Math.max(0, son - 20), son);
-  const ortHacim = ortalama(oncekiHacimler.filter(v => v > 0));
+  const gecerliHacimler = oncekiHacimler.filter(v => v > 0);
+  const ortHacim = ortalama(gecerliHacimler);
 
   const hacimOrani =
-    sonHacim > 0 && Number.isFinite(ortHacim) && ortHacim > 0
+    Number.isFinite(sonHacim) &&
+    sonHacim > 0 &&
+    Number.isFinite(ortHacim) &&
+    ortHacim > 0
       ? sonHacim / ortHacim
       : NaN;
 
   const canliFiyat =
-    Number(meta.regularMarketPrice) ||
-    Number(q.close?.[q.close.length - 1]) ||
-    sonMum.close;
+    Number.isFinite(meta.regularMarketPrice) &&
+    meta.regularMarketPrice > 0
+      ? meta.regularMarketPrice
+      : sonMum.close;
 
   const sonHamZaman = hamMumlar[hamMumlar.length - 1]?.zaman;
-  const piyasaZamani = Number(meta.regularMarketTime) || NaN;
+  const piyasaZamani = Number.isFinite(meta.regularMarketTime)
+    ? meta.regularMarketTime
+    : NaN;
+
+  const hacimDoluMumSayisi = mumlar.filter(
+    m => Number.isFinite(m.volume) && m.volume > 0
+  ).length;
 
   return {
     sembol,
@@ -417,93 +431,120 @@ async function hisseAnaliz(sembol) {
     anaSinyal,
     hacim: sonHacim,
     hacimOrani,
+    hacimDoluMumSayisi,
     sonMumZamani: sonMum.zaman,
-    mumKapanisZamani: sonMum.zaman + PERIYOT,
     sonHamZaman,
-    hamVeriYasi: sonHamZaman ? (simdi - sonHamZaman) / 60 : NaN,
+    hamVeriYasi: Number.isFinite(sonHamZaman)
+      ? (simdi - sonHamZaman) / 60
+      : NaN,
     piyasaZamani,
-    piyasaVeriYasi: piyasaZamani ? (simdi - piyasaZamani) / 60 : NaN,
+    piyasaVeriYasi: Number.isFinite(piyasaZamani)
+      ? (simdi - piyasaZamani) / 60
+      : NaN,
     hamMumSayisi: hamMumlar.length,
     kapanmisMumSayisi: mumlar.length
   };
 }
 
 async function bistTarama() {
-  const durum = document.querySelector(".status");
   const liste = document.querySelector("#hisse-listesi");
+  const buton = document.querySelector("#tarama-butonu");
 
-  if (durum) durum.textContent = "Tarama yapılıyor...";
-  if (liste) liste.innerHTML = "";
+  if (window.taramaDevamEdiyor) return;
+  window.taramaDevamEdiyor = true;
+
+  if (buton) {
+    buton.disabled = true;
+    buton.textContent = "TARAMA YAPILIYOR...";
+  }
+
+  if (liste) liste.textContent = "Veriler alınıyor, lütfen bekleyin...";
 
   const sonuclar = [];
   const hatalar = [];
 
-  for (const sembol of hisseler) {
-    try {
-      const veri = await hisseAnaliz(sembol);
-      sonuclar.push(veri);
-    } catch (hata) {
-      hatalar.push(sembol + ": " + hata.message);
+  try {
+    for (const sembol of hisseler) {
+      try {
+        const veri = await hisseAnaliz(sembol);
+        sonuclar.push(veri);
+      } catch (hata) {
+        hatalar.push(sembol + ": " + hata.message);
+      }
+    }
+
+    const sinyalSayisi = sonuclar.filter(x => x.anaSinyal).length;
+
+    const taramaSaati = new Date().toLocaleString("tr-TR", {
+      timeZone: "Europe/Istanbul"
+    });
+
+    let metin =
+      "TARAMA DURUMU\n" +
+      "1 saatlik tarama tamamlandı.\n" +
+      "Kontrol edilen hisse: " + hisseler.length +
+      " | Başarılı analiz: " + sonuclar.length +
+      " | Ana sinyal: " + sinyalSayisi +
+      "\nTarama saati: " + taramaSaati +
+      "\n\n";
+
+    for (const x of sonuclar) {
+      metin +=
+        x.sembol +
+        " | Kapanmış fiyat: " + formatFiyat(x.kapanis) +
+        " | Canlı fiyat: " + formatFiyat(x.canliFiyat) +
+        " | EMA8: " + formatFiyat(x.ema8) +
+        " | EMA20: " + formatFiyat(x.ema20) +
+        " | EMA durumu: " + x.emaDurum +
+        " | TKE: " + formatFiyat(x.tke) +
+        " | TKE EMA: " + formatFiyat(x.tkeEma) +
+        " | TKE yön: " + x.tkeYon +
+        " | TKE sıfır yukarı kesim: " +
+          (x.tkeSifirYukariKesisim ? "EVET" : "Hayır") +
+        " | TKE 20 kesim: " +
+          (x.tke20Kesisim ? "EVET" : "Hayır") +
+        " | EMA kesim: " +
+          (x.emaKesim ? "EVET" : "Hayır") +
+        " | Fiyat EMA20 üstü: " +
+          (x.fiyatEma20Ustu ? "EVET" : "Hayır") +
+        " | Hacim: " +
+          (Number.isFinite(x.hacim) && x.hacim > 0
+            ? x.hacim.toLocaleString("tr-TR")
+            : "VERİ YOK") +
+        " | Hacim/Ort.: " + formatOran(x.hacimOrani) +
+        " | Hacimli mum sayısı: " + x.hacimDoluMumSayisi +
+        " | Ana sinyal: " + (x.anaSinyal ? "EVET" : "YOK") +
+        "\n   Mum zaman etiketi: " + istanbulZaman(x.sonMumZamani) +
+        " | Yahoo son ham mum: " + istanbulZaman(x.sonHamZaman) +
+        " | Ham veri yaşı: " + formatFiyat(x.hamVeriYasi) + " dk" +
+        "\n   Piyasa veri zamanı: " + istanbulZaman(x.piyasaZamani) +
+        " | Piyasa veri yaşı: " + formatFiyat(x.piyasaVeriYasi) + " dk" +
+        "\n   Ham mum: " + x.hamMumSayisi +
+        " | Kapanmış mum: " + x.kapanmisMumSayisi +
+        "\n\n";
+    }
+
+    if (hatalar.length) {
+      metin += "ANALİZ HATALARI\n" + hatalar.join("\n");
+    }
+
+    if (sonuclar.length === 0) {
+      metin += "Hiçbir hisse analiz edilemedi. Veri bağlantısını kontrol edin.";
+    }
+
+    if (liste) liste.textContent = metin;
+    console.log(metin);
+
+    return sonuclar;
+  } finally {
+    window.taramaDevamEdiyor = false;
+
+    if (buton) {
+      buton.disabled = false;
+      buton.textContent = "TARAMAYI BAŞLAT";
     }
   }
-
-  const sinyalSayisi = sonuclar.filter(x => x.anaSinyal).length;
-
-  const taramaSaati = new Date().toLocaleString("tr-TR", {
-    timeZone: "Europe/Istanbul"
-  });
-
-  let metin =
-    "## Tarama Durumu\n" +
-    "1 saatlik tarama tamamlandı!\n" +
-    "Kontrol edilen hisse: " + hisseler.length +
-    " | Başarılı analiz: " + sonuclar.length +
-    " | Ana sinyal: " + sinyalSayisi +
-    " | Tarama saati: " + taramaSaati + "\n\n";
-
-  for (const x of sonuclar) {
-    metin +=
-      x.sembol +
-      " | Kapanmış fiyat: " + formatFiyat(x.kapanis) +
-      " | Canlı fiyat: " + formatFiyat(x.canliFiyat) +
-      " | EMA8: " + formatFiyat(x.ema8) +
-      " | EMA20: " + formatFiyat(x.ema20) +
-      " | EMA durumu: " + x.emaDurum +
-      " | TKE: " + formatFiyat(x.tke) +
-      " | TKE EMA: " + formatFiyat(x.tkeEma) +
-      " | TKE yön: " + x.tkeYon +
-      " | TKE sıfır yukarı kesim: " + (x.tkeSifirYukariKesisim ? "EVET" : "Hayır") +
-      " | TKE 20 kesim: " + (x.tke20Kesisim ? "EVET" : "Hayır") +
-      " | EMA kesim: " + (x.emaKesim ? "EVET" : "Hayır") +
-      " | Fiyat EMA20 üstü: " + (x.fiyatEma20Ustu ? "EVET" : "Hayır") +
-      " | Hacim: " + (x.hacim > 0 ? x.hacim.toLocaleString("tr-TR") : "YOK/SIFIR") +
-      " | Hacim/Ort.: " + formatOran(x.hacimOrani) +
-      " | Ana sinyal: " + (x.anaSinyal ? "EVET" : "YOK") +
-      " | Son kapanmış mum: " + istanbulZaman(x.sonMumZamani) +
-      " | Mum kapanış zamanı: " + istanbulZaman(x.mumKapanisZamani) +
-      " | Yahoo son ham mum: " + istanbulZaman(x.sonHamZaman) +
-      " | Ham veri yaşı: " + formatFiyat(x.hamVeriYasi) + " dk" +
-      " | Piyasa veri zamanı: " + istanbulZaman(x.piyasaZamani) +
-      " | Piyasa veri yaşı: " + formatFiyat(x.piyasaVeriYasi) + " dk" +
-      " | Ham mum: " + x.hamMumSayisi +
-      " | Kapanmış mum: " + x.kapanmisMumSayisi +
-      "\n\n";
-  }
-
-  if (hatalar.length) {
-    metin += "### Analiz Hataları\n" + hatalar.join("\n");
-  }
-
-  if (durum) durum.textContent = metin;
-
-  if (liste) {
-    liste.textContent = metin;
-  }
-
-  console.log(metin);
-  return sonuclar;
 }
 
-// Tarama fonksiyonunu dışarıdan çalıştırabilmek için:
 window.bistTarama = bistTarama;
 window.hisseAnaliz = hisseAnaliz;
