@@ -2,131 +2,108 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BIST100 Tarama Sistemi</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BIST100 Tarama Sistemi</title>
+  <style>
+    * { box-sizing: border-box; }
 
-<style>
-* { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 18px;
+      background: #101820;
+      color: #f1f5f9;
+      font-family: Arial, sans-serif;
+    }
 
-body {
-  margin: 0;
-  padding: 20px;
-  font-family: Arial, sans-serif;
-  background: #101827;
-  color: white;
-}
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
 
-.container {
-  max-width: 600px;
-  margin: auto;
-}
+    h1 {
+      font-size: 25px;
+      text-align: center;
+      margin: 12px 0 22px;
+    }
 
-h1 {
-  color: #55d6a3;
-  font-size: 25px;
-}
+    .panel {
+      background: #1c2935;
+      border: 1px solid #344454;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
 
-.subtitle { color: #aab6c8; }
+    .bilgi {
+      line-height: 1.8;
+      color: #d4deea;
+      font-size: 14px;
+    }
 
-.card {
-  background: #1d2a3d;
-  padding: 18px;
-  border-radius: 12px;
-  margin: 16px 0;
-}
+    button {
+      width: 100%;
+      padding: 16px;
+      border: 0;
+      border-radius: 9px;
+      background: #16865b;
+      color: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
 
-h2 {
-  font-size: 18px;
-  color: #55d6a3;
-}
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
 
-.item {
-  padding: 11px 0;
-  border-bottom: 1px solid #344258;
-}
+    #hisse-listesi {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.65;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      color: #e5edf5;
+    }
 
-.status {
-  color: #ffc66d;
-  font-weight: bold;
-}
-
-button {
-  width: 100%;
-  padding: 15px;
-  background: #55d6a3;
-  color: #101827;
-  border: none;
-  border-radius: 9px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-button:active { opacity: 0.8; }
-
-#hisse-listesi {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #e5edf7;
-  font-weight: normal;
-}
-
-.footer {
-  color: #91a0b5;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 30px;
-}
-</style>
+    .alt-bilgi {
+      color: #aab8c6;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  </style>
 </head>
 
 <body>
-<div class="container">
+  <main class="container">
+    <h1>BIST100 TARAMA SİSTEMİ</h1>
 
-<h1>BIST100 TARAMA SİSTEMİ</h1>
-<p class="subtitle">Teknik analiz ve fırsat takip paneli</p>
+    <section class="panel bilgi">
+      <strong>Tarama ayarları</strong><br>
+      Grafik: 1 Saatlik<br>
+      EMA: 8 / 20<br>
+      TKE: Sıfır altından yukarı kesişim<br>
+      Ek kontrol: TKE 20 yukarı kesişimi<br>
+      Ana sinyal: EMA8/20 yukarı kesişimi + TKE sıfır yukarı kesişimi<br>
+      Sinyal hesabı: Kapanmış saatlik mumlar
+    </section>
 
-<div class="card">
-<h2>Tarama Sistemi</h2>
+    <button id="tarama-butonu" onclick="bistTarama()">
+      TARAMAYI BAŞLAT
+    </button>
 
-<div class="item">Piyasa: Borsa İstanbul</div>
-<div class="item">Grafik: 1 Saatlik</div>
-<div class="item">EMA: 8 / 20</div>
-<div class="item">TKE: Sıfır Altından Yukarı Kesişim</div>
-<div class="item">Ek kontrol: TKE 20 Yukarı Kesişim</div>
-<div class="item">Hedef: %5</div>
-<div class="item">Risk: Dengeli</div>
-</div>
+    <section class="panel" style="margin-top:16px;">
+      <div id="hisse-listesi" class="status">Tarama başlatılmayı bekliyor.</div>
+    </section>
 
-<div class="card">
-<h2>Tarama Durumu</h2>
+    <p class="alt-bilgi">
+      Bu sistem teknik tarama ve eğitim amaçlıdır. Otomatik alım-satım yapmaz.
+      Veriler gecikmeli veya eksik gelebilir. İşlem kararı vermeden önce
+      fiyat ve verileri ayrıca kontrol edin.
+    </p>
+  </main>
 
-<button onclick="bistTarama()">
-TARAMAYI BAŞLAT
-</button>
-
-<p id="hisse-listesi" class="status">
-Tarama başlatılmayı bekliyor.
-</p>
-</div>
-
-<div class="card">
-<h2>İşlem Takip</h2>
-<p>Alım ve satım kararları otomatik verilmeyecektir.</p>
-<p>Her aday birlikte incelenecek ve onaylanacaktır.</p>
-</div>
-
-<div class="footer">
-BIST100 Yatırım Projesi<br>
-Analiz • Tarama • Kontrollü Karar
-</div>
-
-</div>
-
-<script src="scanner.js"></script>
-
+  <script src="scanner.js"></script>
 </body>
 </html>
