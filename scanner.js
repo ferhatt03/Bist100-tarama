@@ -32,8 +32,15 @@ function formatOran(deger) {
   return Number.isFinite(deger) ? deger.toFixed(2) + "x" : "-";
 }
 
+function formatHacim(deger) {
+  return Number.isFinite(deger)
+    ? deger.toLocaleString("tr-TR")
+    : "VERİ YOK";
+}
+
 function ortalama(dizi) {
   const gecerli = dizi.filter(Number.isFinite);
+
   return gecerli.length
     ? gecerli.reduce((a, b) => a + b, 0) / gecerli.length
     : NaN;
@@ -46,6 +53,7 @@ function ema(dizi, periyot) {
   if (ilk < 0 || dizi.length - ilk < periyot) return sonuc;
 
   let onceki = ortalama(dizi.slice(ilk, ilk + periyot));
+
   if (!Number.isFinite(onceki)) return sonuc;
 
   const ilkIndex = ilk + periyot - 1;
@@ -65,6 +73,7 @@ function ema(dizi, periyot) {
 
 function rsi(dizi, periyot = 14) {
   const sonuc = Array(dizi.length).fill(NaN);
+
   if (dizi.length <= periyot) return sonuc;
 
   let kazanc = 0;
@@ -72,6 +81,7 @@ function rsi(dizi, periyot = 14) {
 
   for (let i = 1; i <= periyot; i++) {
     const fark = dizi[i] - dizi[i - 1];
+
     if (fark > 0) kazanc += fark;
     else kayip -= fark;
   }
@@ -157,21 +167,47 @@ function momentum(close, periyot = 14) {
 
 function mfi(high, low, close, volume, periyot = 14) {
   const sonuc = Array(close.length).fill(NaN);
-  const tipik = close.map((c, i) => (high[i] + low[i] + c) / 3);
-  const paraAkisi = tipik.map((t, i) => t * (volume[i] || 0));
+
+  const tipik = close.map((c, i) =>
+    (high[i] + low[i] + c) / 3
+  );
+
+  const paraAkisi = tipik.map((t, i) =>
+    Number.isFinite(volume[i]) && volume[i] >= 0
+      ? t * volume[i]
+      : NaN
+  );
 
   for (let i = periyot; i < close.length; i++) {
     let pozitif = 0;
     let negatif = 0;
+    let veriEksik = false;
 
     for (let j = i - periyot + 1; j <= i; j++) {
-      if (tipik[j] > tipik[j - 1]) pozitif += paraAkisi[j];
-      else if (tipik[j] < tipik[j - 1]) negatif += paraAkisi[j];
+      if (
+        !Number.isFinite(volume[j]) ||
+        !Number.isFinite(paraAkisi[j])
+      ) {
+        veriEksik = true;
+        break;
+      }
+
+      if (tipik[j] > tipik[j - 1]) {
+        pozitif += paraAkisi[j];
+      } else if (tipik[j] < tipik[j - 1]) {
+        negatif += paraAkisi[j];
+      }
     }
 
-    if (negatif === 0 && pozitif === 0) sonuc[i] = 50;
-    else if (negatif === 0) sonuc[i] = 100;
-    else sonuc[i] = 100 - 100 / (1 + pozitif / negatif);
+    if (veriEksik) continue;
+
+    if (pozitif + negatif === 0) continue;
+
+    if (negatif === 0) {
+      sonuc[i] = 100;
+    } else {
+      sonuc[i] = 100 - 100 / (1 + pozitif / negatif);
+    }
   }
 
   return sonuc;
@@ -214,7 +250,10 @@ function ultimateOscillator(high, low, close) {
 
 function tkeHesapla(high, low, close, volume) {
   const rsiDeger = rsi(close, 14);
-  const stochDeger = ema(stochastic(high, low, close, 14), 6);
+  const stochDeger = ema(
+    stochastic(high, low, close, 14),
+    6
+  );
   const mfiDeger = mfi(high, low, close, volume, 14);
   const cciDeger = cci(high, low, close, 14);
   const williamsDeger = williamsR(high, low, close, 14);
@@ -239,7 +278,8 @@ function tkeHesapla(high, low, close, volume) {
 
   return {
     tke,
-    tkeEma: ema(tke, TKE_EMA_PERIYODU)
+    tkeEma: ema(tke, TKE_EMA_PERIYODU),
+    mfi: mfiDeger
   };
 }
 
@@ -254,7 +294,9 @@ function yukariKesisim(a, b, bakis = KESISIM_BAKIS) {
       Number.isFinite(b[i]) &&
       a[i - 1] <= b[i - 1] &&
       a[i] > b[i]
-    ) return true;
+    ) {
+      return true;
+    }
   }
 
   return false;
@@ -269,7 +311,9 @@ function sifirYukariKesisim(dizi, bakis = KESISIM_BAKIS) {
       Number.isFinite(dizi[i]) &&
       dizi[i - 1] <= 0 &&
       dizi[i] > 0
-    ) return true;
+    ) {
+      return true;
+    }
   }
 
   return false;
@@ -284,10 +328,37 @@ function seviyeYukariKesisim(dizi, seviye, bakis = KESISIM_BAKIS) {
       Number.isFinite(dizi[i]) &&
       dizi[i - 1] <= seviye &&
       dizi[i] > seviye
-    ) return true;
+    ) {
+      return true;
+    }
   }
 
   return false;
+}
+
+// EMA kesişimi ve TKE sıfır kesişimi aynı mumda olmalı.
+function ayniMumAnaSinyal(ema8, ema20, tke, bakis = KESISIM_BAKIS) {
+  const baslangic = Math.max(1, ema8.length - bakis);
+
+  for (let i = ema8.length - 1; i >= baslangic; i--) {
+    const emaKesti =
+      Number.isFinite(ema8[i - 1]) &&
+      Number.isFinite(ema20[i - 1]) &&
+      Number.isFinite(ema8[i]) &&
+      Number.isFinite(ema20[i]) &&
+      ema8[i - 1] <= ema20[i - 1] &&
+      ema8[i] > ema20[i];
+
+    const tkeKesti =
+      Number.isFinite(tke[i - 1]) &&
+      Number.isFinite(tke[i]) &&
+      tke[i - 1] <= 0 &&
+      tke[i] > 0;
+
+    if (emaKesti && tkeKesti) return i;
+  }
+
+  return -1;
 }
 
 async function hisseAnaliz(sembol) {
@@ -333,7 +404,9 @@ async function hisseAnaliz(sembol) {
       !Number.isFinite(yuksek) ||
       !Number.isFinite(dusuk) ||
       !Number.isFinite(kapanis)
-    ) continue;
+    ) {
+      continue;
+    }
 
     hamMumlar.push({
       zaman,
@@ -345,25 +418,29 @@ async function hisseAnaliz(sembol) {
     });
   }
 
-  // Henüz bir saatlik periyodu tamamlanmamış mumları sinyal hesabına katma.
+  // Tamamlanmamış saatlik mumları sinyal hesabına katma.
   const mumlar = hamMumlar.filter(
     m => m.zaman + PERIYOT <= simdi
   );
 
   if (mumlar.length < 40) {
-    throw new Error("Yeterli kapanmış saatlik mum yok: " + mumlar.length);
+    throw new Error(
+      "Yeterli kapanmış saatlik mum yok: " + mumlar.length
+    );
   }
 
   const close = mumlar.map(m => m.close);
   const high = mumlar.map(m => m.high);
   const low = mumlar.map(m => m.low);
-  const volume = mumlar.map(m =>
-    Number.isFinite(m.volume) ? m.volume : 0
-  );
+
+  // Eksik hacmi sıfıra çevirmiyoruz.
+  const volume = mumlar.map(m => m.volume);
 
   const ema8 = ema(close, 8);
   const ema20 = ema(close, 20);
-  const { tke, tkeEma } = tkeHesapla(high, low, close, volume);
+
+  const { tke, tkeEma, mfi: mfiDeger } =
+    tkeHesapla(high, low, close, volume);
 
   const son = mumlar.length - 1;
   const sonMum = mumlar[son];
@@ -372,7 +449,8 @@ async function hisseAnaliz(sembol) {
   const oncekiTke = tke[son - 1];
 
   const tkeYon =
-    Number.isFinite(sonTke) && Number.isFinite(oncekiTke)
+    Number.isFinite(sonTke) &&
+    Number.isFinite(oncekiTke)
       ? sonTke > oncekiTke
         ? "YUKARI"
         : sonTke < oncekiTke
@@ -384,11 +462,22 @@ async function hisseAnaliz(sembol) {
   const tkeSifirYukariKesisim = sifirYukariKesisim(tke);
   const tke20Kesisim = seviyeYukariKesisim(tke, 20);
 
-  const anaSinyal = emaKesim && tkeSifirYukariKesisim;
+  const anaSinyalMumIndex =
+    ayniMumAnaSinyal(ema8, ema20, tke);
+
+  const anaSinyal = anaSinyalMumIndex >= 0;
 
   const sonHacim = sonMum.volume;
-  const oncekiHacimler = volume.slice(Math.max(0, son - 20), son);
-  const gecerliHacimler = oncekiHacimler.filter(v => v > 0);
+
+  const oncekiHacimler = volume.slice(
+    Math.max(0, son - 20),
+    son
+  );
+
+  const gecerliHacimler = oncekiHacimler.filter(
+    v => Number.isFinite(v) && v > 0
+  );
+
   const ortHacim = ortalama(gecerliHacimler);
 
   const hacimOrani =
@@ -405,14 +494,31 @@ async function hisseAnaliz(sembol) {
       ? meta.regularMarketPrice
       : sonMum.close;
 
-  const sonHamZaman = hamMumlar[hamMumlar.length - 1]?.zaman;
-  const piyasaZamani = Number.isFinite(meta.regularMarketTime)
-    ? meta.regularMarketTime
-    : NaN;
+  const sonHamZaman =
+    hamMumlar[hamMumlar.length - 1]?.zaman;
+
+  const piyasaZamani =
+    Number.isFinite(meta.regularMarketTime)
+      ? meta.regularMarketTime
+      : NaN;
 
   const hacimDoluMumSayisi = mumlar.filter(
     m => Number.isFinite(m.volume) && m.volume > 0
   ).length;
+
+  const son14Mum = mumlar.slice(-14);
+
+  const son14HacimEksik = son14Mum.filter(
+    m => !Number.isFinite(m.volume)
+  ).length;
+
+  const mfiDurumu = Number.isFinite(mfiDeger[son])
+    ? "GEÇERLİ"
+    : "HACİM VERİSİ EKSİK VEYA İŞLEM YOK";
+
+  const tkeDurumu = Number.isFinite(sonTke)
+    ? "GEÇERLİ"
+    : "HESAPLANAMADI";
 
   return {
     sembol,
@@ -420,18 +526,28 @@ async function hisseAnaliz(sembol) {
     canliFiyat,
     ema8: ema8[son],
     ema20: ema20[son],
-    emaDurum: ema8[son] > ema20[son] ? "EMA8 ÜSTTE" : "EMA8 ALTTA",
+    emaDurum:
+      ema8[son] > ema20[son]
+        ? "EMA8 ÜSTTE"
+        : "EMA8 ALTTA",
     fiyatEma20Ustu: sonMum.close > ema20[son],
     tke: sonTke,
     tkeEma: tkeEma[son],
     tkeYon,
+    tkeDurumu,
+    mfiDurumu,
     tkeSifirYukariKesisim,
     tke20Kesisim,
     emaKesim,
     anaSinyal,
+    anaSinyalZamani:
+      anaSinyal
+        ? mumlar[anaSinyalMumIndex].zaman
+        : NaN,
     hacim: sonHacim,
     hacimOrani,
     hacimDoluMumSayisi,
+    son14HacimEksik,
     sonMumZamani: sonMum.zaman,
     sonHamZaman,
     hamVeriYasi: Number.isFinite(sonHamZaman)
@@ -451,6 +567,7 @@ async function bistTarama() {
   const buton = document.querySelector("#tarama-butonu");
 
   if (window.taramaDevamEdiyor) return;
+
   window.taramaDevamEdiyor = true;
 
   if (buton) {
@@ -458,7 +575,9 @@ async function bistTarama() {
     buton.textContent = "TARAMA YAPILIYOR...";
   }
 
-  if (liste) liste.textContent = "Veriler alınıyor, lütfen bekleyin...";
+  if (liste) {
+    liste.textContent = "Veriler alınıyor, lütfen bekleyin...";
+  }
 
   const sonuclar = [];
   const hatalar = [];
@@ -473,11 +592,14 @@ async function bistTarama() {
       }
     }
 
-    const sinyalSayisi = sonuclar.filter(x => x.anaSinyal).length;
+    const sinyalSayisi = sonuclar.filter(
+      x => x.anaSinyal
+    ).length;
 
-    const taramaSaati = new Date().toLocaleString("tr-TR", {
-      timeZone: "Europe/Istanbul"
-    });
+    const taramaSaati = new Date().toLocaleString(
+      "tr-TR",
+      { timeZone: "Europe/Istanbul" }
+    );
 
     let metin =
       "TARAMA DURUMU\n" +
@@ -498,7 +620,9 @@ async function bistTarama() {
         " | EMA durumu: " + x.emaDurum +
         " | TKE: " + formatFiyat(x.tke) +
         " | TKE EMA: " + formatFiyat(x.tkeEma) +
+        " | TKE durumu: " + x.tkeDurumu +
         " | TKE yön: " + x.tkeYon +
+        " | MFI durumu: " + x.mfiDurumu +
         " | TKE sıfır yukarı kesim: " +
           (x.tkeSifirYukariKesisim ? "EVET" : "Hayır") +
         " | TKE 20 kesim: " +
@@ -507,32 +631,41 @@ async function bistTarama() {
           (x.emaKesim ? "EVET" : "Hayır") +
         " | Fiyat EMA20 üstü: " +
           (x.fiyatEma20Ustu ? "EVET" : "Hayır") +
-        " | Hacim: " +
-          (Number.isFinite(x.hacim) && x.hacim > 0
-            ? x.hacim.toLocaleString("tr-TR")
-            : "VERİ YOK") +
+        " | Hacim: " + formatHacim(x.hacim) +
         " | Hacim/Ort.: " + formatOran(x.hacimOrani) +
         " | Hacimli mum sayısı: " + x.hacimDoluMumSayisi +
+        " | Son 14 mumda eksik hacim: " + x.son14HacimEksik +
         " | Ana sinyal: " + (x.anaSinyal ? "EVET" : "YOK") +
-        "\n   Mum zaman etiketi: " + istanbulZaman(x.sonMumZamani) +
-        " | Yahoo son ham mum: " + istanbulZaman(x.sonHamZaman) +
-        " | Ham veri yaşı: " + formatFiyat(x.hamVeriYasi) + " dk" +
-        "\n   Piyasa veri zamanı: " + istanbulZaman(x.piyasaZamani) +
-        " | Piyasa veri yaşı: " + formatFiyat(x.piyasaVeriYasi) + " dk" +
+        "\n   Mum zaman etiketi: " +
+          istanbulZaman(x.sonMumZamani) +
+        " | Ana sinyal mum zamanı: " +
+          istanbulZaman(x.anaSinyalZamani) +
+        "\n   Yahoo son ham mum: " +
+          istanbulZaman(x.sonHamZaman) +
+        " | Ham veri yaşı: " +
+          formatFiyat(x.hamVeriYasi) + " dk" +
+        "\n   Piyasa veri zamanı: " +
+          istanbulZaman(x.piyasaZamani) +
+        " | Piyasa veri yaşı: " +
+          formatFiyat(x.piyasaVeriYasi) + " dk" +
         "\n   Ham mum: " + x.hamMumSayisi +
         " | Kapanmış mum: " + x.kapanmisMumSayisi +
         "\n\n";
     }
 
     if (hatalar.length) {
-      metin += "ANALİZ HATALARI\n" + hatalar.join("\n");
+      metin +=
+        "ANALİZ HATALARI\n" +
+        hatalar.join("\n");
     }
 
     if (sonuclar.length === 0) {
-      metin += "Hiçbir hisse analiz edilemedi. Veri bağlantısını kontrol edin.";
+      metin +=
+        "Hiçbir hisse analiz edilemedi. Veri bağlantısını kontrol edin.";
     }
 
     if (liste) liste.textContent = metin;
+
     console.log(metin);
 
     return sonuclar;
