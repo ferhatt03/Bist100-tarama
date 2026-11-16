@@ -367,8 +367,8 @@ async function bistTarama() {
         x.hisse +
         " | Fiyat: " + x.fiyat.toFixed(2) +
         " | EMA8: " + x.ema8.toFixed(2) +
-        " | EMA20: " + x.ema20.toFixed(2) +
-        " | TKE: " + x.tke.toFixed(2) +
+        " | EMA20: " + x.ema20.toFixed(2)
+      " | TKE: Henüz hesaplanmadı" +
         " | TKE yön: " + (x.tkeYukari ? "YUKARI" : "AŞAĞI") +
         " | Sıfır altı dönüş: " + (x.sifirAltiDonus ? "EVET" : "Hayır") +
         " | Sıfır kesim: " + (x.sifirKesim ? "EVET" : "Hayır") +
