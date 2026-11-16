@@ -1,11 +1,13 @@
 
 const hisseler = ["ASELS", "TUPRS", "BIMAS", "THYAO", "AKBNK"];
 
-const PERIYOT = 3600; // 1 saat
+const PERIYOT = 3600;
 const KESISIM_BAKIS = 3;
 
 // İstanbul saati
 function istanbulZaman(timestamp) {
+  if (!Number.isFinite(timestamp)) return "-";
+
   return new Date(timestamp * 1000).toLocaleString("tr-TR", {
     timeZone: "Europe/Istanbul",
     dateStyle: "short",
@@ -28,6 +30,7 @@ function ema(a, p) {
 
     out[i] = previous;
   }
+
   return out;
 }
 
@@ -69,6 +72,7 @@ function rsi(close, p = 14) {
       ? 100
       : 100 - 100 / (1 + gain / loss);
   }
+
   return out;
 }
 
@@ -85,6 +89,7 @@ function stochastic(bars, p = 14) {
       ? 0
       : 100 * (bars[i].close - lowest) / (highest - lowest);
   }
+
   return out;
 }
 
@@ -108,6 +113,7 @@ function cci(bars, p = 14) {
       ? 0
       : (tp[i] - avg) / (0.015 * deviation);
   }
+
   return out;
 }
 
@@ -124,6 +130,7 @@ function williamsR(bars, p = 14) {
       ? 0
       : -100 * (highest - bars[i].close) / (highest - lowest);
   }
+
   return out;
 }
 
@@ -157,6 +164,7 @@ function mfi(bars, p = 14) {
       out[i] = 100 - 100 / (1 + upper / lower);
     }
   }
+
   return out;
 }
 
@@ -169,6 +177,7 @@ function momentum(close, p = 14) {
       ? NaN
       : close[i] / close[i - p] * 100;
   }
+
   return out;
 }
 
@@ -209,10 +218,11 @@ function ultimate(bars) {
       out[i] = 100 * (4 * r7 + 2 * r14 + r28) / 7;
     }
   }
+
   return out;
 }
 
-// TKE - mevcut Yaşar Erdinç formülümüz
+// TKE - mevcut formülümüz
 function tkeHesapla(bars) {
   const close = bars.map(x => x.close);
 
@@ -242,7 +252,7 @@ function tkeHesapla(bars) {
   };
 }
 
-// Son 3 kapanmış mum içinde yukarı kesişim kontrolü
+// Son 3 mumda yukarı kesişim
 function yukariKesisim(a, b, son, bakis = 3) {
   const baslangic = Math.max(1, son - bakis + 1);
 
@@ -258,10 +268,11 @@ function yukariKesisim(a, b, son, bakis = 3) {
       return true;
     }
   }
+
   return false;
 }
 
-// Seviyeyi yukarı kesme kontrolü
+// Seviyeyi yukarı kesme
 function seviyeKesisim(a, seviye, son, bakis = 3) {
   const baslangic = Math.max(1, son - bakis + 1);
 
@@ -275,6 +286,7 @@ function seviyeKesisim(a, seviye, son, bakis = 3) {
       return true;
     }
   }
+
   return false;
 }
 
@@ -308,6 +320,7 @@ async function hisseAnaliz(hisse) {
     const sonuc = veri.chart.result[0];
     const zamanlar = sonuc.timestamp || [];
     const mumlar = sonuc.indicators.quote[0];
+    const meta = sonuc.meta || {};
 
     const simdi = Math.floor(Date.now() / 1000);
     const saatlik = [];
@@ -336,8 +349,7 @@ async function hisseAnaliz(hisse) {
       throw new Error("Yeterli saatlik veri yok");
     }
 
-    // Son tamamlanmış saatlik mumları seç.
-    // Yahoo mum zamanını mum başlangıcı olarak verir.
+    // Tamamlanmış saatlik mumları seç
     const kapanmisMumlar = saatlik.filter(
       m => m.zaman + PERIYOT <= simdi
     );
@@ -350,8 +362,16 @@ async function hisseAnaliz(hisse) {
     const sonMum = kapanmisMumlar[kapanmisMumlar.length - 1];
 
     const canliFiyat =
-      Number(sonuc.meta.regularMarketPrice) ||
-      sonHamMum.close;
+      Number.isFinite(Number(meta.regularMarketPrice)) &&
+      Number(meta.regularMarketPrice) > 0
+        ? Number(meta.regularMarketPrice)
+        : sonHamMum.close;
+
+    const canliFiyatKaynak =
+      Number.isFinite(Number(meta.regularMarketPrice)) &&
+      Number(meta.regularMarketPrice) > 0
+        ? "Yahoo canlı piyasa fiyatı"
+        : "Son ham mum kapanışı (canlı olmayabilir)";
 
     const kapanislar = kapanmisMumlar.map(m => m.close);
 
@@ -394,11 +414,10 @@ async function hisseAnaliz(hisse) {
 
     const tkeYukari = sonTke > oncekiTke;
 
-    // Ana sinyal: iki koşulun da son 3 kapanmış mumda gerçekleşmesi
     const anaSinyal = emaKesim && yirmiKesim;
 
-    // Hacim karşılaştırması: son mum / önceki 20 mum ortalaması
     const hacimBaslangic = Math.max(0, son - 20);
+
     const oncekiHacimler = kapanmisMumlar
       .slice(hacimBaslangic, son)
       .map(m => m.volume);
@@ -412,10 +431,23 @@ async function hisseAnaliz(hisse) {
       ? sonMum.volume / ortHacim
       : NaN;
 
+    // Veri zamanı kontrolleri
+    const sonHamYasDakika =
+      (simdi - sonHamMum.zaman) / 60;
+
+    const piyasaVeriZamani =
+      Number(meta.regularMarketTime) || NaN;
+
+    const piyasaVeriYasiDakika =
+      Number.isFinite(piyasaVeriZamani)
+        ? (simdi - piyasaVeriZamani) / 60
+        : NaN;
+
     return {
       hisse,
       fiyat: sonMum.close,
       canliFiyat,
+      canliFiyatKaynak,
 
       ema8: ema8[son],
       ema20: ema20[son],
@@ -440,8 +472,16 @@ async function hisseAnaliz(hisse) {
       hacimOrani,
 
       mum: sonMum.zaman,
+      mumKapanisZamani: sonMum.zaman + PERIYOT,
+
       veriMumu: sonHamMum.zaman,
+      veriYasiDakika: sonHamYasDakika,
+
+      piyasaVeriZamani,
+      piyasaVeriYasiDakika,
+
       mumSayisi: kapanmisMumlar.length,
+      hamMumSayisi: saatlik.length,
 
       durum: "Kapanmış saatlik mum"
     };
@@ -467,7 +507,7 @@ async function bistTarama() {
   const taramaZamani = new Date();
 
   status.textContent = "1 saatlik EMA ve TKE taraması yapılıyor...";
-  detail.textContent = "Kapanmış mumlar kontrol ediliyor.";
+  detail.textContent = "Yahoo verileri ve kapanmış mumlar kontrol ediliyor.";
 
   let liste = document.getElementById("hisse-listesi");
 
@@ -502,6 +542,11 @@ async function bistTarama() {
       ? "ANA SİNYAL: EMA + TKE ONAYLI"
       : "Ana sinyal yok";
 
+    const veriUyarisi =
+      x.veriYasiDakika > 120
+        ? " | UYARI: Yahoo mum verisi eski olabilir!"
+        : "";
+
     satir.textContent =
       x.hisse +
       " | Kapanmış fiyat: " + formatFiyat(x.fiyat) +
@@ -519,7 +564,15 @@ async function bistTarama() {
       " | Fiyat EMA20 üstü: " + (x.fiyatEma20Ustu ? "EVET" : "Hayır") +
       " | Hacim/Ort.: " + formatFiyat(x.hacimOrani) + "x" +
       " | " + sinyalMetni +
-      " | Son kapanmış mum: " + istanbulZaman(x.mum);
+      " | Son kapanmış mum başlangıcı: " + istanbulZaman(x.mum) +
+      " | Mum kapanış zamanı: " + istanbulZaman(x.mumKapanisZamani) +
+      " | Yahoo son ham mum: " + istanbulZaman(x.veriMumu) +
+      " | Ham veri yaşı: " + formatFiyat(x.veriYasiDakika) + " dk" +
+      " | Piyasa veri zamanı: " + istanbulZaman(x.piyasaVeriZamani) +
+      " | Piyasa veri yaşı: " + formatFiyat(x.piyasaVeriYasiDakika) + " dk" +
+      " | Ham mum sayısı: " + x.hamMumSayisi +
+      " | " + x.canliFiyatKaynak +
+      veriUyarisi;
   }
 
   status.textContent = "1 saatlik tarama tamamlandı!";
