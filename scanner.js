@@ -200,102 +200,137 @@ function tkeHesapla(bars) {
 }
 
 async function hisseAnaliz(hisse) {
-  const url =
-    "https://query1.finance.yahoo.com/v8/finance/chart/" +
-    hisse + ".IS?range=3mo&interval=1h";
+  try {
+    const sembol = hisse + ".IS";
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sembol}?range=3mo&interval=1h`;
 
-  const response = await fetch(
-    "https://proxy.cors.dev/" + url,
-    { credentials: "omit" }
-  );
+    const cevap = await fetch(
+      "https://proxy.cors.dev/" + url,
+      { cache: "no-store" }
+    );
 
-  if (!response.ok) throw new Error("Veri bağlantı hatası");
+    if (!cevap.ok) throw new Error("Veri alınamadı");
 
-  const data = await response.json();
-  const result = data.chart?.result?.[0];
+    const veri = await cevap.json();
+    const sonuc = veri.chart.result[0];
 
-  if (!result) throw new Error("Veri bulunamadı");
+    const zamanlar = sonuc.timestamp;
+    const mumlar = sonuc.indicators.quote[0];
 
-  const q = result.indicators.quote[0];
-  const today = istanbulZaman(Date.now() / 1000).day;
-  const days = {};
+    const saatlik = [];
 
-  result.timestamp.forEach((timestamp, i) => {
-    const t = istanbulZaman(timestamp);
+    for (let i = 0; i < zamanlar.length; i++) {
+      if (
+        mumlar.open[i] == null ||
+        mumlar.high[i] == null ||
+        mumlar.low[i] == null ||
+        mumlar.close[i] == null
+      ) continue;
 
-    if (
-      t.day >= today || t.hour < 10 || t.hour > 17 ||
-      q.open[i] == null || q.high[i] == null ||
-      q.low[i] == null || q.close[i] == null
-    ) return;
-
-    if (!days[t.day]) days[t.day] = {};
-
-    days[t.day][t.hour] = {
-      open: q.open[i],
-      high: q.high[i],
-      low: q.low[i],
-      close: q.close[i],
-      volume: q.volume[i] || 0
-    };
-  });
-
-  const candles = [];
-
-  Object.keys(days).sort().forEach(day => {
-    for (const start of [10, 14]) {
-      const hours = [0, 1, 2, 3].map(x => start + x);
-
-      if (!hours.every(h => days[day][h])) continue;
-
-      const g = hours.map(h => days[day][h]);
-
-      candles.push({
-        day,
-        open: g[0].open,
-        high: Math.max(...g.map(x => x.high)),
-        low: Math.min(...g.map(x => x.low)),
-        close: g[3].close,
-        volume: g.reduce((s, x) => s + x.volume, 0)
+      saatlik.push({
+        zaman: zamanlar[i],
+        acilis: mumlar.open[i],
+        yuksek: mumlar.high[i],
+        dusuk: mumlar.low[i],
+        kapanis: mumlar.close[i],
+        hacim: mumlar.volume[i] || 0
       });
     }
-  });
 
-  if (candles.length < 40) {
-    throw new Error("Yeterli 4 saatlik mum yok");
+    if (saatlik.length < 40) {
+      throw new Error("Yeterli saatlik veri yok");
+    }
+
+    const sonSaatlik = saatlik[saatlik.length - 1];
+    const canliFiyat = sonuc.meta.regularMarketPrice || sonSaatlik.kapanis;
+
+    const gunler = {};
+
+    saatlik.forEach(m => {
+      const tarih = new Date(m.zaman * 1000);
+      const gun = tarih.toLocaleDateString("en-CA", {
+        timeZone: "Europe/Istanbul"
+      });
+
+      const saat = Number(
+        tarih.toLocaleString("en-GB", {
+          timeZone: "Europe/Istanbul",
+          hour: "2-digit",
+          hour12: false
+        })
+      );
+
+      if (!gunler[gun]) gunler[gun] = [];
+      gunler[gun].push({ ...m, saat });
+    });
+
+    const dortSaatlik = [];
+
+    Object.keys(gunler).forEach(gun => {
+      const barlar = gunler[gun].sort((a, b) => a.zaman - b.zaman);
+
+      const gruplar = [
+        barlar.filter(m => m.saat >= 10 && m.saat <= 13),
+        barlar.filter(m => m.saat >= 14 && m.saat <= 17)
+      ];
+
+      gruplar.forEach(grup => {
+        if (grup.length === 4) {
+          dortSaatlik.push({
+            zaman: grup[0].zaman,
+            acilis: grup[0].acilis,
+            yuksek: Math.max(...grup.map(m => m.yuksek)),
+            dusuk: Math.min(...grup.map(m => m.dusuk)),
+            kapanis: grup[3].kapanis,
+            hacim: grup.reduce((toplam, m) => toplam + m.hacim, 0)
+          });
+        }
+      });
+    });
+
+    if (dortSaatlik.length < 30) {
+      throw new Error("Yeterli tamamlanmış 4 saatlik mum yok");
+    }
+
+    const kapanislar = dortSaatlik.map(m => m.kapanis);
+
+    function ema(dizi, periyot) {
+      const sonuc = [];
+      const katsayi = 2 / (periyot + 1);
+      let onceki = dizi[0];
+
+      dizi.forEach((deger, i) => {
+        onceki = i === 0
+          ? deger
+          : deger * katsayi + onceki * (1 - katsayi);
+        sonuc.push(onceki);
+      });
+
+      return sonuc;
+    }
+
+    const ema8 = ema(kapanislar, 8);
+    const ema20 = ema(kapanislar, 20);
+
+    const son = dortSaatlik.length - 1;
+
+    return {
+      hisse,
+      fiyat: kapanislar[son],
+      canliFiyat,
+      ema8: ema8[son],
+      ema20: ema20[son],
+      canliMum: sonSaatlik,
+      mumSayisi: dortSaatlik.length,
+      durum: "Tamamlanmış 4 saatlik mum"
+    };
+
+  } catch (hata) {
+    return {
+      hisse,
+      hata: hata.message
+    };
   }
-
-  const closes = candles.map(x => x.close);
-  const e8 = ema(closes, 8);
-  const e20 = ema(closes, 20);
-  const tke = tkeHesapla(candles).values;
-
-  const i = candles.length - 1;
-  const current = tke[i];
-  const previous = tke[i - 1];
-  const before = tke[i - 2];
-
-  if (![current, previous, before].every(Number.isFinite)) {
-    throw new Error("TKE hesaplaması tamamlanamadı");
-  }
-
-  return {
-    hisse,
-    fiyat: closes[i],
-    ema8: e8[i],
-    ema20: e20[i],
-    tke: current,
-    tkeYukari: current > previous,
-    sifirAltiDonus:
-      previous < 0 && current > previous && previous <= before,
-    sifirKesim:
-      previous <= 0 && current > 0,
-    yirmiKesim:
-      previous <= 20 && current > 20,
-    emaKesim:
-      e8[i] > e20[i] && e8[i - 1] <= e20[i - 1],
-    mum: candles.length
-  };
 }
 
 async function bistTarama() {
