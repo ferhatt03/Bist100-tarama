@@ -13,7 +13,6 @@ function ema(values, period) {
     result = (values[i] - result) * multiplier + result;
     output.push(result);
   }
-
   return output;
 }
 
@@ -27,12 +26,12 @@ async function hisseAnaliz(hisse) {
     { credentials: "omit" }
   );
 
-  if (!response.ok) throw new Error("Veri alinamadi");
+  if (!response.ok) throw new Error("Veri alınamadı");
 
   const data = await response.json();
   const result = data.chart?.result?.[0];
 
-  if (!result) throw new Error("Veri bulunamadi");
+  if (!result) throw new Error("Veri bulunamadı");
 
   const q = result.indicators.quote[0];
   const bars = [];
@@ -108,7 +107,7 @@ async function hisseAnaliz(hisse) {
 }
 
 async function bistTarama() {
-  status.textContent = "4 saatlik teknik analiz yapiliyor...";
+  status.textContent = "4 saatlik teknik analiz yapılıyor...";
 
   const sonuc = [];
 
@@ -120,7 +119,7 @@ async function bistTarama() {
     }
   }
 
-  status.textContent = "4 saatlik tarama tamamlandi!";
+  status.textContent = "4 saatlik tarama tamamlandı!";
 
   detail.textContent = "Kontrol edilen hisse: " + hisseler.length;
 
@@ -143,8 +142,13 @@ async function bistTarama() {
         " | Fiyat: " + x.fiyat.toFixed(2) +
         " | EMA 8: " + x.ema8.toFixed(2) +
         " | EMA 20: " + x.ema20.toFixed(2) +
-        " | " + (x.kesişim ? "YENI YUKARI KESISIM" :
-          x.ema8 > x.ema20 ? "EMA 8 USTTE" : "EMA 8 ALTTA");
+        " | " + (
+          x.kesişim
+            ? "YENİ YUKARI KESİŞİM"
+            : x.ema8 > x.ema20
+              ? "EMA 8 ÜSTTE"
+              : "EMA 8 ALTTA"
+        );
 
     liste.appendChild(satir);
   });
