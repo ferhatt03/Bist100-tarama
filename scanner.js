@@ -27,6 +27,65 @@ const TKE_EMA_PERIYODU = 5;
 const VERI_ARALIGI = "3mo";
 const GRUP_BOYUTU = 5;
 const GRUP_BEKLEME = 700;
+const TAM_BIST_CSV = "https://proxy.cors.dev/https://bistsirketleri.com/wp-content/themes/bistsirketleri/assets/downloads/borsa-hisseleri-listesi.csv";
+
+function csvSatirlaraAyir(metin) {
+  const satirlar = [];
+  let satir = [], alan = "", tirnak = false;
+  for (let i = 0; i < metin.length; i++) {
+    const c = metin[i];
+    if (c === '"' && metin[i + 1] === '"' && tirnak) { alan += '"'; i++; }
+    else if (c === '"') tirnak = !tirnak;
+    else if ((c === ',' || c === ';' || c === '\t') && !tirnak) { satir.push(alan.trim()); alan = ""; }
+    else if ((c === '\n' || c === '\r') && !tirnak) {
+      if (alan.trim() || satir.length) { satir.push(alan.trim()); satirlar.push(satir); }
+      satir = []; alan = "";
+    } else alan += c;
+  }
+  if (alan.trim() || satir.length) { satir.push(alan.trim()); satirlar.push(satir); }
+  return satirlar;
+}
+
+async function bistTumPaylariGetir() {
+  const cevap = await fetch(TAM_BIST_CSV + "&_=" + Date.now(), { cache: "no-store" });
+  if (!cevap.ok) throw new Error("BIST pay listesi indirilemedi: " + cevap.status);
+  const satirlar = csvSatirlaraAyir(await cevap.text());
+  const kodlar = [];
+  for (const satir of satirlar) {
+    const kod = (satir.find(x => /^[A-Z0-9]{3,6}$/.test(x)) || "").toUpperCase();
+    if (!kod || kod === "SIRA" || kod === "KOD" || kod === "PAY") continue;
+    const ad = satir.join(" ").toLocaleUpperCase("tr-TR");
+    // BYF/fon/varant/sertifika kodları pay senedi taramasına alınmaz.
+    if (/BORSA YATIRIM FONU|\bBYF\b|PORTFOY|PORTFÖY|VARANT|SERTIFIKA|SERTİFİKA|FON ADI/.test(ad)) continue;
+    if (!kodlar.includes(kod)) kodlar.push(kod);
+  }
+  if (kodlar.length < 300) throw new Error("İndirilen listede yeterli pay kodu bulunamadı: " + kodlar.length);
+  return kodlar.sort();
+}
+
+function dortSaatlikGrupla(mumlar) {
+  const gruplar = new Map();
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23"
+  });
+  for (const m of mumlar) {
+    const parca = Object.fromEntries(fmt.formatToParts(new Date(m.zaman * 1000)).map(p => [p.type, p.value]));
+    const saat = Number(parca.hour);
+    if (saat < 10 || saat >= 18) continue;
+    const bas = saat < 14 ? 10 : 14;
+    const anahtar = parca.year + parca.month + parca.day + "-" + bas;
+    if (!gruplar.has(anahtar)) gruplar.set(anahtar, []);
+    gruplar.get(anahtar).push(m);
+  }
+  const sonuc = [];
+  for (const [anahtar, grup] of gruplar) {
+    grup.sort((a,b) => a.zaman-b.zaman);
+    if (grup.length < 4) continue;
+    const ilk = grup[0], son = grup[grup.length-1];
+    sonuc.push({ zaman: ilk.zaman, open: ilk.open, high: Math.max(...grup.map(x=>x.high)), low: Math.min(...grup.map(x=>x.low)), close: son.close, volume: grup.every(x=>Number.isFinite(x.volume)) ? grup.reduce((a,x)=>a+x.volume,0) : NaN });
+  }
+  return sonuc;
+}
 
 function istanbulZaman(timestamp) {
   if (!Number.isFinite(timestamp)) return "-";
@@ -432,6 +491,21 @@ async function hisseAnaliz(sembol) {
     ? "GEÇERLİ"
     : "HESAPLANAMADI";
 
+  const mumlar4s = dortSaatlikGrupla(mumlar);
+  let teyit4s = "VERİ YETERSİZ";
+  let ema84s = NaN, ema204s = NaN, tke4s = NaN, tkeYon4s = "-", fiyat4sUstu = false;
+  if (mumlar4s.length >= 40) {
+    const c4 = mumlar4s.map(m=>m.close), h4=mumlar4s.map(m=>m.high), l4=mumlar4s.map(m=>m.low), v4=mumlar4s.map(m=>m.volume);
+    const e84=ema(c4,8), e204=ema(c4,20), t4=tkeHesapla(h4,l4,c4,v4).tke;
+    const z=mumlar4s.length-1;
+    ema84s=e84[z]; ema204s=e204[z]; tke4s=t4[z];
+    tkeYon4s=Number.isFinite(t4[z]) && Number.isFinite(t4[z-1]) ? (t4[z]>t4[z-1] ? "YUKARI" : t4[z]<t4[z-1] ? "AŞAĞI" : "YATAY") : "-";
+    fiyat4sUstu=c4[z]>e204[z];
+    const olumlu=ema84s>ema204s && fiyat4sUstu && tke4s>20 && tkeYon4s==="YUKARI";
+    const kismen= (ema84s>ema204s?1:0)+(fiyat4sUstu?1:0)+(tke4s>20?1:0)+(tkeYon4s==="YUKARI"?1:0);
+    teyit4s=olumlu ? "TAMAM" : kismen>=2 ? "BEKLİYOR" : "ZAYIF";
+  }
+
   return {
     sembol,
     kapanis: sonMum.close,
@@ -467,7 +541,9 @@ async function hisseAnaliz(sembol) {
       ? (simdi - piyasaZamani) / 60
       : NaN,
     hamMumSayisi: hamMumlar.length,
-    kapanmisMumSayisi: mumlar.length
+    kapanmisMumSayisi: mumlar.length,
+    mumSayisi4s: mumlar4s.length,
+    teyit4s, ema84s, ema204s, tke4s, tkeYon4s, fiyat4sUstu
   };
 }
 
@@ -529,7 +605,18 @@ async function bistTarama() {
 
   const sonuclar = [];
   const hatalar = [];
-  const toplamHisse = hisseler.length;
+  let taramaListesi = hisseler.slice();
+  let listeKaynakNotu = "YEDEK 100 HİSSELİK LİSTE";
+  try {
+    taramaListesi = await bistTumPaylariGetir();
+    listeKaynakNotu = "GÜNCEL TÜM PAY LİSTESİ";
+  } catch (e) {
+    if (liste) liste.textContent = "TÜM BIST LİSTESİ ALINAMADI\n" + e.message + "\nGüvenli tarafta kalmak için tarama durduruldu. Eski 100 hisseye otomatik düşülmedi.";
+    window.taramaDevamEdiyor = false;
+    if (buton) { buton.disabled = false; buton.textContent = "TARAMAYI BAŞLAT"; }
+    return;
+  }
+  const toplamHisse = taramaListesi.length;
   const toplamGrup = Math.ceil(toplamHisse / GRUP_BOYUTU);
   const bekle = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -539,7 +626,7 @@ async function bistTarama() {
       baslangic < toplamHisse;
       baslangic += GRUP_BOYUTU
     ) {
-      const grup = hisseler.slice(
+      const grup = taramaListesi.slice(
         baslangic,
         baslangic + GRUP_BOYUTU
       );
@@ -603,6 +690,10 @@ async function bistTarama() {
     const zayifHisseler = sonuclar.filter(
       x => siniflandir(x) === "ZAYIF"
     );
+    const teyitTamam = sonuclar.filter(x => x.teyit4s === "TAMAM");
+    const teyitBekleyen = sonuclar.filter(x => x.teyit4s === "BEKLİYOR");
+    const teyitZayif = sonuclar.filter(x => x.teyit4s === "ZAYIF");
+    const teyitVeriYok = sonuclar.filter(x => x.teyit4s === "VERİ YETERSİZ");
 
     const taramaSaati = new Date().toLocaleString(
       "tr-TR",
@@ -614,13 +705,13 @@ async function bistTarama() {
       : NaN;
 
     let metin =
-      "BIST 100 TARAMA RAPORU\n" +
+      "BIST TÜM PAYLAR TARAMA RAPORU\n" +
       "==============================\n" +
       "Tarama: " + taramaSaati + "\n" +
       "Kontrol: " + (sonuclar.length + hatalar.length) + " / " + toplamHisse +
       " | Başarılı: " + sonuclar.length +
       " | Hata: " + hatalar.length + "\n" +
-      "Gruplar: " + toplamGrup + " / " + toplamGrup +
+      "Liste: " + listeKaynakNotu + " | Gruplar: " + toplamGrup + " / " + toplamGrup +
       (Number.isFinite(enEskiVeriYasi)
         ? " | En eski Yahoo verisi: " + formatFiyat(enEskiVeriYasi) + " dk"
         : "") +
@@ -667,6 +758,14 @@ async function bistTarama() {
       ? zayifHisseler.map(x => x.sembol).join(", ") + "\n"
       : "Zayıf hisse yok.\n";
 
+    metin +=
+      "\n5. 4 SAATLİK TEYİT\n" +
+      "------------------------------\n" +
+      "TEYİT TAMAM (" + teyitTamam.length + "): " + (teyitTamam.map(x=>x.sembol).join(", ") || "Yok") + "\n" +
+      "TEYİT BEKLİYOR (" + teyitBekleyen.length + "): " + (teyitBekleyen.map(x=>x.sembol).join(", ") || "Yok") + "\n" +
+      "ZAYIF (" + teyitZayif.length + "): " + (teyitZayif.map(x=>x.sembol).join(", ") || "Yok") + "\n" +
+      "4S VERİ YETERSİZ: " + teyitVeriYok.length + "\n";
+
     if (hatalar.length) {
       metin +=
         "\nANALİZ HATALARI (" + hatalar.length + ")\n" +
@@ -682,7 +781,7 @@ async function bistTarama() {
     metin +=
       "\n==============================\n" +
       "NOT: Bu liste teknik ön elemedir, alım-satım talimatı değildir.\n" +
-      "İşlemden önce adaylar 4 saatlik grafikte teyit edilmelidir.\n" +
+      "4 saatlik teyit saatlik mumlardan oluşturulmuştur; teyit tamamı da alım talimatı değildir.\n" +
       "Yahoo Finance verileri gecikmeli olabilir.\n";
 
     if (liste) liste.textContent = metin;
