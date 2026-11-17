@@ -19,8 +19,6 @@ const VERI_ARALIGI = "3mo";
 const GRUP_BOYUTU = 5;
 const GRUP_BEKLEME = 700;
 const TAM_BIST_SAYFA = "https://proxy.cors.dev/https://bistsirketleri.com/bist-hisseleri/";
-
-// 7 günden eski veri işlem değerlendirmesine alınmaz.
 const AZAMI_VERI_YASI_DAKIKA = 7 * 24 * 60;
 
 function ortalama(a) {
@@ -235,7 +233,6 @@ function formatDakika(x) {
   return gun+" gün "+saat+" saat "+dakika+" dk";
 }
 
-// BIST pay listesini alır. Liste alınamazsa güvenli şekilde durur.
 async function bistTumPaylariGetir() {
   const cevap=await fetch(TAM_BIST_SAYFA+"?_="+Date.now(),{
     cache:"no-store",credentials:"omit"
@@ -262,7 +259,6 @@ async function bistTumPaylariGetir() {
   return kodlar.sort();
 }
 
-// Yahoo bağlantısı: query1 başarısızsa query2 denenir.
 async function yahooVerisiAl(sembol) {
   const adresler=["query1.finance.yahoo.com","query2.finance.yahoo.com"];
   const hatalar=[];
@@ -270,13 +266,9 @@ async function yahooVerisiAl(sembol) {
     const hedef="https://"+sunucu+
       "/v8/finance/chart/"+encodeURIComponent(sembol)+
       "?range="+VERI_ARALIGI+"&interval=1h&includePrePost=false";
-
     const url="https://proxy.cors.dev/"+hedef+"&_="+Date.now();
-
     try{
-      const cevap=await fetch(url,{
-        cache:"no-store",credentials:"omit"
-      });
+      const cevap=await fetch(url,{cache:"no-store",credentials:"omit"});
       if(!cevap.ok){
         const kaynak=cevap.headers.get("X-Cors-Source")||"belirsiz";
         const hata=cevap.headers.get("X-Cors-Error")||"-";
@@ -312,8 +304,6 @@ async function hisseAnaliz(sembol) {
   const sonHamZaman=hamZamanlar.length?hamZamanlar[hamZamanlar.length-1]:NaN;
   const hamVeriYasi=Number.isFinite(sonHamZaman)?
     Math.max(0,(simdi-sonHamZaman)/60):Infinity;
-
-  // Eski veri kontrolü: 7 günü aşan veri güncel kabul edilmez.
   const veriGuncel=Number.isFinite(hamVeriYasi) &&
     hamVeriYasi<=AZAMI_VERI_YASI_DAKIKA;
 
@@ -373,19 +363,16 @@ async function hisseAnaliz(sembol) {
     anaSinyalZamani:anaIndex>=0?mumlar[anaIndex].zaman:NaN,
     hacim:v[son],hacimOrani,
     sonMumZamani:sonMum.zaman,
-    sonHamZaman,
-    hamVeriYasi,
-    veriGuncel,
+    sonHamZaman,hamVeriYasi,veriGuncel,
     kapanmisMumSayisi:mumlar.length,
     mumSayisi4s:mum4.length,teyit4s,e84,e204,tke4,yon4,fiyat4
   };
 }
 
 function siniflandir(x) {
-  // Eski veri hiçbir sinyal veya aday listesine alınmaz.
   if(!x.veriGuncel) return "ESKİ VERİ";
-
   if(x.anaSinyal) return "ANA SİNYAL";
+
   const k=[
     x.ema8>x.ema20,
     x.fiyatEma20Ustu,
@@ -398,6 +385,38 @@ function siniflandir(x) {
   if(p===6) return "GÜÇLÜ ADAY";
   if(p>=3) return "TAKİP LİSTESİ";
   return "ZAYIF";
+}
+
+// Takip ve zayıf listeleri için ayrıntılı açıklama üretir.
+function hisseDetaySatiri(x) {
+  const neden=[];
+  if(x.ema8>x.ema20) neden.push("EMA8>EMA20");
+  else neden.push("EMA8<EMA20");
+
+  if(x.fiyatEma20Ustu) neden.push("Fiyat EMA20 üstünde");
+  else neden.push("Fiyat EMA20 altında");
+
+  neden.push("TKE "+(x.tkeYon||"-"));
+  neden.push("TKE "+(Number.isFinite(x.tke)&&x.tke>0?"pozitif":"negatif"));
+
+  if(x.mfiDurumu==="GEÇERLİ") neden.push("MFI geçerli");
+  else neden.push("MFI verisi eksik");
+
+  if(Number.isFinite(x.hacimOrani)){
+    neden.push("Hacim "+formatOran(x.hacimOrani));
+  } else {
+    neden.push("Hacim oranı hesaplanamadı");
+  }
+
+  return x.sembol+
+    " | Kapanış: "+formatFiyat(x.kapanis)+
+    " | EMA8: "+formatFiyat(x.ema8)+
+    " | EMA20: "+formatFiyat(x.ema20)+
+    " | "+x.emaDurum+
+    " | Fiyat: "+(x.fiyatEma20Ustu?"EMA20 ÜSTÜNDE":"EMA20 ALTINDA")+
+    " | TKE: "+formatFiyat(x.tke)+" ("+x.tkeYon+")"+
+    " | Hacim: "+formatOran(x.hacimOrani)+
+    " | Neden: "+neden.join(", ");
 }
 
 function bistTarama() {
@@ -461,13 +480,11 @@ async function bistTaramaCalistir() {
     const guncel=sonuclar.filter(x=>x.veriGuncel);
     const eskiVeriler=sonuclar.filter(x=>!x.veriGuncel);
 
-    // Sinyal ve aday sınıflandırmaları yalnızca güncel veriden yapılır.
     const ana=guncel.filter(x=>siniflandir(x)==="ANA SİNYAL");
     const guclu=guncel.filter(x=>siniflandir(x)==="GÜÇLÜ ADAY");
     const takip=guncel.filter(x=>siniflandir(x)==="TAKİP LİSTESİ");
     const zayif=guncel.filter(x=>siniflandir(x)==="ZAYIF");
 
-    // 4 saatlik teyit sayımları da yalnızca güncel verili hisseleri kapsar.
     const tam=guncel.filter(x=>x.teyit4s==="TAMAM");
     const bekleyen=guncel.filter(x=>x.teyit4s==="BEKLİYOR");
     const zayif4=guncel.filter(x=>x.teyit4s==="ZAYIF");
@@ -517,13 +534,19 @@ async function bistTaramaCalistir() {
       " | TKE: "+formatFiyat(x.tke)+" ("+x.tkeYon+")"+
       " | Hacim: "+formatOran(x.hacimOrani)+"\n").join(""):"Güçlü aday yok.\n";
 
+    // YENİ: Takip listesinin tüm teknik değerleri ve sınıflandırma nedeni.
     metin+="\n3. TAKİP LİSTESİ ("+takip.length+")\n"+
-      "------------------------------\n"+
-      (takip.map(x=>x.sembol).join(", ")||"Takip hissesi yok.")+"\n";
+      "------------------------------\n";
+    metin+=takip.length?
+      takip.map(hisseDetaySatiri).join("\n")+"\n":
+      "Takip hissesi yok.\n";
 
+    // YENİ: Zayıf listedeki hisselerin tüm teknik değerleri ve nedenleri.
     metin+="\n4. ZAYIF HİSSELER ("+zayif.length+")\n"+
-      "------------------------------\n"+
-      (zayif.map(x=>x.sembol).join(", ")||"Zayıf hisse yok.")+"\n";
+      "------------------------------\n";
+    metin+=zayif.length?
+      zayif.map(hisseDetaySatiri).join("\n")+"\n":
+      "Zayıf hisse yok.\n";
 
     metin+="\n5. 4 SAATLİK TEYİT\n"+
       "------------------------------\n"+
