@@ -27,39 +27,46 @@ const TKE_EMA_PERIYODU = 5;
 const VERI_ARALIGI = "3mo";
 const GRUP_BOYUTU = 5;
 const GRUP_BEKLEME = 700;
-const TAM_BIST_CSV = "https://proxy.cors.dev/https://bistsirketleri.com/wp-content/themes/bistsirketleri/assets/downloads/borsa-hisseleri-listesi.csv";
-
-function csvSatirlaraAyir(metin) {
-  const satirlar = [];
-  let satir = [], alan = "", tirnak = false;
-  for (let i = 0; i < metin.length; i++) {
-    const c = metin[i];
-    if (c === '"' && metin[i + 1] === '"' && tirnak) { alan += '"'; i++; }
-    else if (c === '"') tirnak = !tirnak;
-    else if ((c === ',' || c === ';' || c === '\t') && !tirnak) { satir.push(alan.trim()); alan = ""; }
-    else if ((c === '\n' || c === '\r') && !tirnak) {
-      if (alan.trim() || satir.length) { satir.push(alan.trim()); satirlar.push(satir); }
-      satir = []; alan = "";
-    } else alan += c;
-  }
-  if (alan.trim() || satir.length) { satir.push(alan.trim()); satirlar.push(satir); }
-  return satirlar;
-}
+const TAM_BIST_SAYFA = "https://proxy.cors.dev/https://bistsirketleri.com/bist-hisseleri/";
 
 async function bistTumPaylariGetir() {
-  const cevap = await fetch(TAM_BIST_CSV + "?_=" + Date.now(), { cache: "no-store" });
-  if (!cevap.ok) throw new Error("BIST pay listesi indirilemedi: " + cevap.status);
-  const satirlar = csvSatirlaraAyir(await cevap.text());
+  const cevap = await fetch(TAM_BIST_SAYFA + "?_=" + Date.now(), {
+    cache: "no-store",
+    credentials: "omit"
+  });
+  if (!cevap.ok) {
+    const kod = cevap.headers.get("X-Cors-Error") || cevap.status;
+    throw new Error("BIST pay listesi sayfası alınamadı: " + kod);
+  }
+
+  const html = await cevap.text();
+  if (!html || html.length < 10000) {
+    throw new Error("BIST liste sayfası eksik geldi; tarama güvenlik için durduruldu.");
+  }
+
+  const belge = new DOMParser().parseFromString(html, "text/html");
+  const satirlar = Array.from(belge.querySelectorAll("tr"));
   const kodlar = [];
+
   for (const satir of satirlar) {
-    const kod = (satir.find(x => /^[A-Z0-9]{3,6}$/.test(x)) || "").toUpperCase();
-    if (!kod || kod === "SIRA" || kod === "KOD" || kod === "PAY") continue;
-    const ad = satir.join(" ").toLocaleUpperCase("tr-TR");
-    // BYF/fon/varant/sertifika kodları pay senedi taramasına alınmaz.
-    if (/BORSA YATIRIM FONU|\bBYF\b|PORTFOY|PORTFÖY|VARANT|SERTIFIKA|SERTİFİKA|FON ADI/.test(ad)) continue;
+    const hucreler = Array.from(satir.querySelectorAll("th, td"));
+    if (hucreler.length < 2) continue;
+
+    const kodHucre = hucreler[0];
+    const kodMetni = (kodHucre.textContent || "").trim().toLocaleUpperCase("tr-TR");
+    const kod = kodMetni.match(/^[A-Z0-9]{3,6}$/) ? kodMetni : "";
+    if (!kod) continue;
+
+    const sirketAdi = hucreler.slice(1).map(h => h.textContent || "").join(" ").toLocaleUpperCase("tr-TR");
+    // Fonlar, BYF'ler, varantlar ve sertifikalar pay senedi taramasına alınmaz.
+    if (/BORSA YATIRIM FONU|\bBYF\b|YATIRIM FONU|PORTFOY|PORTFÖY|VARANT|SERTIFIKA|SERTİFİKA|ETF/.test(sirketAdi)) continue;
     if (!kodlar.includes(kod)) kodlar.push(kod);
   }
-  if (kodlar.length < 300) throw new Error("İndirilen listede yeterli pay kodu bulunamadı: " + kodlar.length);
+
+  if (kodlar.length < 300) {
+    throw new Error("Sayfadan yeterli pay kodu çıkarılamadı: " + kodlar.length + ". Liste yapısı değişmiş olabilir.");
+  }
+
   return kodlar.sort();
 }
 
