@@ -1,5 +1,27 @@
 
-const hisseler = ["ASELS", "TUPRS", "BIMAS", "THYAO", "AKBNK"];
+
+const hisseler = [
+  "AEFES", "AGHOL", "AHGAZ", "AKBNK", "AKCNS",
+  "AKFYE", "AKSA", "AKSEN", "ALARK", "ALBRK",
+  "ALTNY", "ANHYT", "ANSGR", "ARCLK", "ASELS",
+  "ASTOR", "AYGAZ", "BERA", "BIMAS", "BINHO",
+  "BRSAN", "BRYAT", "BTCIM", "CANTE", "CCOLA",
+  "CIMSA", "CVKMD", "CWENE", "DOAS", "DOHOL",
+  "ECILC", "ECZYT", "EGEEN", "EGGUB", "EKGYO",
+  "ENERY", "ENJSA", "ENKAI", "ENTRA", "EREGL",
+  "EUREN", "FENER", "FROTO", "GARAN", "GLRMK",
+  "GLYHO", "GRSEL", "GUBRF", "GWIND", "HALKB",
+  "HEKTS", "ISCTR", "ISDMR", "ISMEN", "KARSN",
+  "KATMR", "KCAER", "KCHOL", "KORDS", "KRDMD",
+  "LMKDC", "MAVI", "MGROS", "MPARK", "OBAMS",
+  "ODAS", "OTKAR", "OYAKC", "PAHOL", "PETKM",
+  "PGSUS", "RGYAS", "RYSAS", "SAHOL", "SASA",
+  "SISE", "SNGYO", "SOKM", "TABGD", "TAVHL",
+  "TCELL", "TCKRC", "THYAO", "TKFEN", "TOASO",
+  "TRALT", "TRENJ", "TRGYO", "TRMET", "TSKB",
+  "TTKOM", "TTRAK", "TUKAS", "TUPRS", "TURSG",
+  "ULKER", "VAKBN", "VESTL", "YKBNK", "ZOREN"
+];
 
 const PERIYOT = 3600;
 const KESISIM_BAKIS = 3;
