@@ -47,7 +47,7 @@ function csvSatirlaraAyir(metin) {
 }
 
 async function bistTumPaylariGetir() {
-  const cevap = await fetch(TAM_BIST_CSV + "&_=" + Date.now(), { cache: "no-store" });
+  const cevap = await fetch(TAM_BIST_CSV + "?_=" + Date.now(), { cache: "no-store" });
   if (!cevap.ok) throw new Error("BIST pay listesi indirilemedi: " + cevap.status);
   const satirlar = csvSatirlaraAyir(await cevap.text());
   const kodlar = [];
