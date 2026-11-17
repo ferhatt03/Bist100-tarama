@@ -1,5 +1,4 @@
 
-
 const hisseler = [
   "AEFES", "AGHOL", "AHGAZ", "AKBNK", "AKCNS",
   "AKFYE", "AKSA", "AKSEN", "ALARK", "ALBRK",
@@ -27,6 +26,10 @@ const PERIYOT = 3600;
 const KESISIM_BAKIS = 3;
 const TKE_EMA_PERIYODU = 5;
 const VERI_ARALIGI = "3mo";
+
+// Tarama ayarları
+const GRUP_BOYUTU = 5;
+const GRUP_BEKLEME = 700;
 
 function istanbulZaman(timestamp) {
   if (!Number.isFinite(timestamp)) return "-";
@@ -597,20 +600,79 @@ async function bistTarama() {
     buton.textContent = "TARAMA YAPILIYOR...";
   }
 
-  if (liste) {
-    liste.textContent = "Veriler alınıyor, lütfen bekleyin...";
-  }
-
   const sonuclar = [];
   const hatalar = [];
 
+  const toplamHisse = hisseler.length;
+  const toplamGrup = Math.ceil(toplamHisse / GRUP_BOYUTU);
+
+  const bekle = ms =>
+    new Promise(resolve => setTimeout(resolve, ms));
+
   try {
-    for (const sembol of hisseler) {
-      try {
-        const veri = await hisseAnaliz(sembol);
-        sonuclar.push(veri);
-      } catch (hata) {
-        hatalar.push(sembol + ": " + hata.message);
+    for (
+      let baslangic = 0;
+      baslangic < toplamHisse;
+      baslangic += GRUP_BOYUTU
+    ) {
+      const grup = hisseler.slice(
+        baslangic,
+        baslangic + GRUP_BOYUTU
+      );
+
+      const grupNo =
+        Math.floor(baslangic / GRUP_BOYUTU) + 1;
+
+      if (liste) {
+        liste.textContent =
+          "BIST TARAMASI DEVAM EDİYOR\n\n" +
+          "Tamamlanan grup: " + (grupNo - 1) +
+          " / " + toplamGrup +
+          "\nKontrol edilen hisse: " + sonuclar.length +
+          " / " + toplamHisse +
+          "\nBaşarılı analiz: " + sonuclar.length +
+          "\nHata sayısı: " + hatalar.length +
+          "\n\nŞu an taranan grup:\n" +
+          grup.join(", ") +
+          "\n\nLütfen tarama bitene kadar bekleyin.";
+      }
+
+      const grupSonuclari = await Promise.allSettled(
+        grup.map(sembol => hisseAnaliz(sembol))
+      );
+
+      for (let i = 0; i < grupSonuclari.length; i++) {
+        const sonuc = grupSonuclari[i];
+        const sembol = grup[i];
+
+        if (sonuc.status === "fulfilled") {
+          sonuclar.push(sonuc.value);
+        } else {
+          const mesaj =
+            sonuc.reason?.message ||
+            String(sonuc.reason || "Bilinmeyen hata");
+
+          hatalar.push(sembol + ": " + mesaj);
+        }
+      }
+
+      if (liste) {
+        liste.textContent =
+          "BIST TARAMASI DEVAM EDİYOR\n\n" +
+          "Tamamlanan grup: " + grupNo +
+          " / " + toplamGrup +
+          "\nKontrol edilen hisse: " +
+          (sonuclar.length + hatalar.length) +
+          " / " + toplamHisse +
+          "\nBaşarılı analiz: " + sonuclar.length +
+          "\nHata sayısı: " + hatalar.length +
+          "\n\nSon tamamlanan grup:\n" +
+          grup.join(", ") +
+          "\n\nSonraki grup hazırlanıyor...";
+      }
+
+      if (baslangic + GRUP_BOYUTU < toplamHisse) {
+        await bekle(GRUP_BEKLEME);
       }
     }
 
@@ -625,14 +687,23 @@ async function bistTarama() {
 
     let metin =
       "TARAMA DURUMU\n" +
-      "1 saatlik tarama tamamlandı.\n" +
-      "Kontrol edilen hisse: " + hisseler.length +
-      " | Başarılı analiz: " + sonuclar.length +
+      "BIST HİSSE TARAMASI TAMAMLANDI!\n" +
+      "Toplam listedeki hisse: " + toplamHisse +
+      " | Grup büyüklüğü: " + GRUP_BOYUTU +
+      " | Tamamlanan grup: " + toplamGrup +
+      "\nBaşarılı analiz: " + sonuclar.length +
+      " | Hata: " + hatalar.length +
       " | Ana sinyal: " + sinyalSayisi +
       "\nTarama saati: " + taramaSaati +
       "\n\n";
 
-    for (const x of sonuclar) {
+    // Ana sinyal verenleri önce göster.
+    const siraliSonuclar = [
+      ...sonuclar.filter(x => x.anaSinyal),
+      ...sonuclar.filter(x => !x.anaSinyal)
+    ];
+
+    for (const x of siraliSonuclar) {
       metin +=
         x.sembol +
         " | Kapanmış fiyat: " + formatFiyat(x.kapanis) +
@@ -678,7 +749,8 @@ async function bistTarama() {
     if (hatalar.length) {
       metin +=
         "ANALİZ HATALARI\n" +
-        hatalar.join("\n");
+        hatalar.join("\n") +
+        "\n\n";
     }
 
     if (sonuclar.length === 0) {
@@ -691,6 +763,7 @@ async function bistTarama() {
     console.log(metin);
 
     return sonuclar;
+
   } finally {
     window.taramaDevamEdiyor = false;
 
