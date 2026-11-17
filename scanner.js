@@ -493,32 +493,24 @@ function siniflandir(x) {
   return "ZAYIF";
 }
 
-function hisseSatiri(x) {
+function anaSinyalSatiri(x) {
+  return (
+    x.sembol +
+    " | EMA: " + x.emaDurum +
+    " | Fiyat EMA20: " + (x.fiyatEma20Ustu ? "ÜSTÜNDE" : "ALTINDA") +
+    " | TKE: " + formatFiyat(x.tke) + " (" + x.tkeYon + ")" +
+    " | Sinyal mumu: " + istanbulZaman(x.anaSinyalZamani) +
+    "\n"
+  );
+}
+
+function gucluAdaySatiri(x) {
   return (
     x.sembol +
     " | Kapanış: " + formatFiyat(x.kapanis) +
-    " | Canlı: " + formatFiyat(x.canliFiyat) +
-    " | EMA8: " + formatFiyat(x.ema8) +
-    " | EMA20: " + formatFiyat(x.ema20) +
-    " | EMA: " + x.emaDurum +
-    " | Fiyat EMA20 üstü: " +
-      (x.fiyatEma20Ustu ? "EVET" : "HAYIR") +
-    " | TKE: " + formatFiyat(x.tke) +
-    " | TKE EMA: " + formatFiyat(x.tkeEma) +
-    " | TKE yön: " + x.tkeYon +
-    " | MFI: " + x.mfiDurumu +
-    " | TKE sıfır kesim: " +
-      (x.tkeSifirYukariKesisim ? "EVET" : "HAYIR") +
-    " | TKE 20 kesim: " +
-      (x.tke20Kesisim ? "EVET" : "HAYIR") +
-    " | EMA kesim: " + (x.emaKesim ? "EVET" : "HAYIR") +
-    " | Hacim: " + formatHacim(x.hacim) +
-    " | Hacim/Ort.: " + formatOran(x.hacimOrani) +
-    "\n   Son kapanmış mum: " + istanbulZaman(x.sonMumZamani) +
-    " | Ana sinyal mumu: " + istanbulZaman(x.anaSinyalZamani) +
-    "\n   Yahoo ham veri: " + istanbulZaman(x.sonHamZaman) +
-    " | Ham veri yaşı: " + formatFiyat(x.hamVeriYasi) + " dk" +
-    " | Kapanmış mum: " + x.kapanmisMumSayisi +
+    " | EMA8/20: " + x.emaDurum +
+    " | TKE: " + formatFiyat(x.tke) + " (" + x.tkeYon + ")" +
+    " | Hacim: " + formatOran(x.hacimOrani) +
     "\n"
   );
 }
@@ -614,77 +606,66 @@ async function bistTarama() {
 
     const taramaSaati = new Date().toLocaleString(
       "tr-TR",
-      { timeZone: "Europe/Istanbul" }
+      { timeZone: "Europe/Istanbul", hour12: false }
     );
 
+    const enEskiVeriYasi = sonuclar.length
+      ? Math.max(...sonuclar.map(x => x.hamVeriYasi).filter(Number.isFinite))
+      : NaN;
+
     let metin =
-      "BIST HİSSE TARAMA RAPORU\n" +
+      "BIST 100 TARAMA RAPORU\n" +
       "==============================\n" +
-      "Toplam listedeki hisse: " + toplamHisse +
-      " | Başarılı analiz: " + sonuclar.length +
-      " | Hata: " + hatalar.length +
-      "\nTamamlanan grup: " + toplamGrup + " / " + toplamGrup +
-      "\nTarama saati: " + taramaSaati +
+      "Tarama: " + taramaSaati + "\n" +
+      "Kontrol: " + (sonuclar.length + hatalar.length) + " / " + toplamHisse +
+      " | Başarılı: " + sonuclar.length +
+      " | Hata: " + hatalar.length + "\n" +
+      "Gruplar: " + toplamGrup + " / " + toplamGrup +
+      (Number.isFinite(enEskiVeriYasi)
+        ? " | En eski Yahoo verisi: " + formatFiyat(enEskiVeriYasi) + " dk"
+        : "") +
       "\n\n";
 
     metin +=
-      "1) ANA SİNYAL (" + anaSinyaller.length + ")\n" +
+      "1. ANA SİNYAL (" + anaSinyaller.length + ")\n" +
       "------------------------------\n";
 
     if (anaSinyaller.length) {
       for (const x of anaSinyaller) {
-        metin += hisseSatiri(x);
+        metin += anaSinyalSatiri(x);
         metin +=
-          "   NOT: Kesişim son 3 kapanmış mum içinde oluşmuş olabilir. " +
-          "Güncel EMA ve TKE durumu ayrıca kontrol edilmelidir.\n\n";
+          "   UYARI: Kesişim son 3 kapanmış mum içinde oluşmuş olabilir. " +
+          "Güncel görünüm zayıfsa bu tek başına alım sinyali değildir.\n";
       }
     } else {
-      metin += "Ana sinyal veren hisse bulunamadı.\n\n";
+      metin += "Ana sinyal yok.\n";
     }
 
     metin +=
-      "2) GÜÇLÜ ADAYLAR (" + gucluAdaylar.length + ")\n" +
+      "\n2. GÜÇLÜ ADAYLAR (" + gucluAdaylar.length + ")\n" +
       "------------------------------\n";
 
     if (gucluAdaylar.length) {
       for (const x of gucluAdaylar) {
-        metin += hisseSatiri(x) + "\n";
+        metin += gucluAdaySatiri(x);
       }
     } else {
-      metin += "Bütün güçlü aday şartlarını sağlayan hisse yok.\n\n";
+      metin += "Tüm güçlü aday koşullarını sağlayan hisse yok.\n";
     }
 
     metin +=
-      "3) TAKİP LİSTESİ (" + takipListesi.length + ")\n" +
+      "\n3. TAKİP LİSTESİ (" + takipListesi.length + ")\n" +
       "------------------------------\n";
-
-    if (takipListesi.length) {
-      for (const x of takipListesi) {
-        metin += hisseSatiri(x) + "\n";
-      }
-    } else {
-      metin += "Takip listesine giren hisse yok.\n\n";
-    }
+    metin += takipListesi.length
+      ? takipListesi.map(x => x.sembol).join(", ") + "\n"
+      : "Takip hissesi yok.\n";
 
     metin +=
-      "4) ZAYIF HİSSELER (" + zayifHisseler.length + ")\n" +
+      "\n4. ZAYIF HİSSELER (" + zayifHisseler.length + ")\n" +
       "------------------------------\n";
-
-    if (zayifHisseler.length) {
-      for (const x of zayifHisseler) {
-        metin +=
-          x.sembol +
-          " | EMA: " + x.emaDurum +
-          " | Fiyat EMA20 üstü: " +
-            (x.fiyatEma20Ustu ? "EVET" : "HAYIR") +
-          " | TKE: " + formatFiyat(x.tke) +
-          " | TKE yön: " + x.tkeYon +
-          " | Hacim/Ort.: " + formatOran(x.hacimOrani) +
-          "\n";
-      }
-    } else {
-      metin += "Zayıf grupta hisse yok.\n";
-    }
+    metin += zayifHisseler.length
+      ? zayifHisseler.map(x => x.sembol).join(", ") + "\n"
+      : "Zayıf hisse yok.\n";
 
     if (hatalar.length) {
       metin +=
@@ -700,10 +681,9 @@ async function bistTarama() {
 
     metin +=
       "\n==============================\n" +
-      "ÖNEMLİ NOT:\n" +
-      "Bu gruplar teknik tarama sınıflandırmasıdır, alım-satım talimatı değildir.\n" +
-      "Ana sinyal ve güçlü adaylar dahil, işlem kararı öncesinde 4 saatlik grafik teyidi yapılmalıdır.\n" +
-      "Veriler Yahoo Finance kaynağından gelir ve gecikmeli olabilir.";
+      "NOT: Bu liste teknik ön elemedir, alım-satım talimatı değildir.\n" +
+      "İşlemden önce adaylar 4 saatlik grafikte teyit edilmelidir.\n" +
+      "Yahoo Finance verileri gecikmeli olabilir.\n";
 
     if (liste) liste.textContent = metin;
     console.log(metin);
