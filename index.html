@@ -2,108 +2,500 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BIST100 Tarama Sistemi</title>
-  <style>
-    * { box-sizing: border-box; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIST Akıllı Tarama</title>
 
-    body {
-      margin: 0;
-      padding: 18px;
-      background: #101820;
-      color: #f1f5f9;
-      font-family: Arial, sans-serif;
-    }
+<style>
+*{box-sizing:border-box}
 
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-    }
+body{
+  margin:0;
+  padding:16px;
+  background:#101820;
+  color:#edf3f8;
+  font-family:Arial,sans-serif;
+}
 
-    h1 {
-      font-size: 25px;
-      text-align: center;
-      margin: 12px 0 22px;
-    }
+.container{
+  max-width:900px;
+  margin:auto;
+}
 
-    .panel {
-      background: #1c2935;
-      border: 1px solid #344454;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
+header{
+  text-align:center;
+  padding:12px 0 20px;
+}
 
-    .bilgi {
-      line-height: 1.8;
-      color: #d4deea;
-      font-size: 14px;
-    }
+header h1{
+  font-size:23px;
+  margin:0 0 7px;
+}
 
-    button {
-      width: 100%;
-      padding: 16px;
-      border: 0;
-      border-radius: 9px;
-      background: #16865b;
-      color: white;
-      font-size: 17px;
-      font-weight: bold;
-      cursor: pointer;
-    }
+header p{
+  color:#9eafbf;
+  font-size:13px;
+  margin:0;
+}
 
-    button:disabled {
-      opacity: 0.6;
-      cursor: wait;
-    }
+button{
+  width:100%;
+  padding:17px;
+  border:0;
+  border-radius:12px;
+  background:#16865b;
+  color:white;
+  font-size:17px;
+  font-weight:bold;
+  cursor:pointer;
+}
 
-    #hisse-listesi {
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      line-height: 1.65;
-      font-family: Arial, sans-serif;
-      font-size: 13px;
-      color: #e5edf5;
-    }
+button:disabled{
+  opacity:.55;
+}
 
-    .alt-bilgi {
-      color: #aab8c6;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-  </style>
+.panel{
+  background:#1c2935;
+  border:1px solid #344454;
+  border-radius:14px;
+  padding:15px;
+  margin-top:14px;
+}
+
+.panel-title{
+  font-size:16px;
+  font-weight:bold;
+  margin-bottom:12px;
+}
+
+.status{
+  color:#bdcbd8;
+  font-size:13px;
+  line-height:1.7;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:14px;
+}
+
+.metric{
+  background:#243544;
+  border:1px solid #3b5062;
+  border-radius:12px;
+  padding:13px;
+  min-width:0;
+}
+
+.metric small{
+  display:block;
+  color:#aab9c7;
+  font-size:12px;
+  margin-bottom:7px;
+}
+
+.metric strong{
+  display:block;
+  font-size:23px;
+  overflow-wrap:anywhere;
+}
+
+.green{color:#45d49a}
+.yellow{color:#f5c66a}
+.red{color:#ff8585}
+.blue{color:#80baff}
+
+.progress{
+  height:8px;
+  background:#344454;
+  border-radius:20px;
+  overflow:hidden;
+  margin-top:12px;
+}
+
+.progress-fill{
+  width:0%;
+  height:100%;
+  background:#25b982;
+  transition:width .3s;
+}
+
+.section{
+  margin-top:16px;
+}
+
+.section details{
+  background:#1c2935;
+  border:1px solid #344454;
+  border-radius:13px;
+  margin-bottom:10px;
+  overflow:hidden;
+}
+
+.section summary{
+  padding:15px;
+  cursor:pointer;
+  font-weight:bold;
+  font-size:15px;
+  list-style:none;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+
+.section summary::-webkit-details-marker{
+  display:none;
+}
+
+.section summary:after{
+  content:"+";
+  color:#9fb4c6;
+  font-size:21px;
+}
+
+.section details[open] summary:after{
+  content:"−";
+}
+
+.count{
+  color:#83baff;
+  font-size:13px;
+  white-space:nowrap;
+}
+
+.items{
+  padding:0 12px 12px;
+}
+
+.item{
+  background:#243544;
+  border:1px solid #3a5062;
+  border-radius:9px;
+  padding:12px;
+  margin-top:8px;
+  font-size:13px;
+  line-height:1.65;
+  overflow-wrap:anywhere;
+}
+
+.item strong{
+  color:#8fc4ff;
+  font-size:15px;
+}
+
+.empty{
+  color:#aab9c7;
+  padding:10px;
+  font-size:13px;
+}
+
+.info{
+  color:#9eafbf;
+  font-size:12px;
+  line-height:1.6;
+  margin:17px 3px;
+}
+
+.meta{
+  font-size:12px;
+  line-height:1.8;
+  color:#bdcbd8;
+  overflow-wrap:anywhere;
+}
+
+#hisse-listesi{
+  position:absolute;
+  left:-10000px;
+  top:0;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  white-space:pre-wrap;
+}
+
+.hidden{
+  display:none;
+}
+
+@media(min-width:600px){
+  .grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+</style>
 </head>
 
 <body>
-  <main class="container">
-    <h1>BIST100 TARAMA SİSTEMİ</h1>
+<main class="container">
 
-    <section class="panel bilgi">
-      <strong>Tarama ayarları</strong><br>
-      Grafik: 1 Saatlik<br>
-      EMA: 8 / 20<br>
-      TKE: Sıfır altından yukarı kesişim<br>
-      Ek kontrol: TKE 20 yukarı kesişimi<br>
-      Ana sinyal: EMA8/20 yukarı kesişimi + TKE sıfır yukarı kesişimi<br>
-      Sinyal hesabı: Kapanmış saatlik mumlar
-    </section>
+<header>
+  <h1>BIST TÜM PAYLAR</h1>
+  <p>Akıllı Teknik Tarama Sistemi</p>
+</header>
 
-    <button id="tarama-butonu" onclick="bistTarama()">
-      TARAMAYI BAŞLAT
-    </button>
+<button id="tarama-butonu" onclick="bistTarama()">
+  TARAMAYI BAŞLAT
+</button>
 
-    <section class="panel" style="margin-top:16px;">
-      <div id="hisse-listesi" class="status">Tarama başlatılmayı bekliyor.</div>
-    </section>
+<section class="panel">
+  <div class="panel-title">Tarama durumu</div>
+  <div id="durum" class="status">Tarama başlatılmayı bekliyor.</div>
+  <div class="progress">
+    <div id="ilerleme" class="progress-fill"></div>
+  </div>
+</section>
 
-    <p class="alt-bilgi">
-      Bu sistem teknik tarama ve eğitim amaçlıdır. Otomatik alım-satım yapmaz.
-      Veriler gecikmeli veya eksik gelebilir. İşlem kararı vermeden önce
-      fiyat ve verileri ayrıca kontrol edin.
-    </p>
-  </main>
+<section id="ozet" class="hidden">
+  <div class="grid">
+    <div class="metric">
+      <small>Kontrol edilen</small>
+      <strong id="kontrol">-</strong>
+    </div>
+    <div class="metric">
+      <small>Başarılı analiz</small>
+      <strong class="green" id="basarili">-</strong>
+    </div>
+    <div class="metric">
+      <small>Ana sinyal</small>
+      <strong class="blue" id="ana">-</strong>
+    </div>
+    <div class="metric">
+      <small>Güçlü aday</small>
+      <strong class="green" id="guclu">-</strong>
+    </div>
+  </div>
 
-  <script src="scanner.js"></script>
+  <div class="grid">
+    <div class="metric">
+      <small>Takip listesi</small>
+      <strong id="takip">-</strong>
+    </div>
+    <div class="metric">
+      <small>Zayıf hisseler</small>
+      <strong class="red" id="zayif">-</strong>
+    </div>
+    <div class="metric">
+      <small>4 saat teyit</small>
+      <strong class="green" id="teyit">-</strong>
+    </div>
+    <div class="metric">
+      <small>Analiz hatası</small>
+      <strong class="yellow" id="hata">-</strong>
+    </div>
+  </div>
+</section>
+
+<section id="rapor-bilgisi" class="panel hidden">
+  <div class="panel-title">Veri bilgileri</div>
+  <div id="meta" class="meta"></div>
+</section>
+
+<section id="sonuclar" class="section"></section>
+
+<section id="ilk-bilgi" class="panel">
+  <div class="panel-title">Tarama hakkında</div>
+  <div class="status">
+    Tarama başladığında sonuçlar burada görüntülenecek.
+
+    Ana sinyaller, güçlü adaylar, takip listesi,
+    zayıf hisseler ve 4 saatlik teyit ayrı bölümlerde gösterilir.
+  </div>
+</section>
+
+<div id="hisse-listesi"></div>
+
+<p class="info">
+Bu sistem teknik tarama ve eğitim amaçlıdır.
+Otomatik alım-satım yapmaz. Yahoo Finance verileri
+gecikmeli veya eksik olabilir. 4 saatlik teyit,
+saatlik mumlardan oluşturulur. İşlem kararı vermeden
+önce fiyat ve verileri ayrıca kontrol edin.
+</p>
+
+</main>
+
+<script src="scanner.js"></script>
+
+<script>
+(function(){
+
+const kaynak=document.getElementById("hisse-listesi");
+const durum=document.getElementById("durum");
+const ilerleme=document.getElementById("ilerleme");
+const sonuclar=document.getElementById("sonuclar");
+
+let sonMetin="";
+
+function sayiBul(metin,desen){
+  const eslesme=metin.match(desen);
+  return eslesme?eslesme[1]:"-";
+}
+
+function eleman(etiket,metin,cls){
+  const e=document.createElement(etiket);
+  e.textContent=metin;
+  if(cls)e.className=cls;
+  return e;
+}
+
+function bolumOlustur(baslik,icerik,acik){
+  const detay=document.createElement("details");
+  if(acik)detay.open=true;
+
+  const ozet=document.createElement("summary");
+  ozet.appendChild(document.createTextNode(baslik));
+  detay.appendChild(ozet);
+
+  const alan=eleman("div","","items");
+  const satirlar=icerik.split("\n")
+    .map(x=>x.trim())
+    .filter(x=>x && !/^[-=]{3,}$/.test(x));
+
+  if(!satirlar.length){
+    alan.appendChild(eleman("div","Kayıt bulunamadı.","empty"));
+  }else{
+    satirlar.forEach(s=>{
+      const kart=eleman("div","","item");
+      const ilk=s.split("|")[0].trim();
+
+      if(/^[A-Z0-9]{3,6}$/.test(ilk)){
+        kart.appendChild(eleman("strong",ilk));
+        kart.appendChild(document.createElement("br"));
+        kart.appendChild(document.createTextNode(s.slice(ilk.length).trim()));
+      }else{
+        kart.textContent=s;
+      }
+      alan.appendChild(kart);
+    });
+  }
+
+  detay.appendChild(alan);
+  return detay;
+}
+
+function bolumBul(metin,numara){
+  const baslik=new RegExp(
+    "(?:^|\\n)"+numara+"\\. [^\\n]*\\n"
+  );
+  const eslesme=metin.match(baslik);
+  if(!eslesme)return "";
+
+  const bas=eslesme.index+eslesme[0].length;
+  const sonraki=metin.slice(bas).search(/\n\d+\. [^\n]*\n/);
+  return sonraki<0?metin.slice(bas):metin.slice(bas,bas+sonraki);
+}
+
+function bolumSayisi(metin,numara){
+  const r=new RegExp(numara+"\\. [^\\n]*\\((\\d+)\\)");
+  const m=metin.match(r);
+  return m?m[1]:"-";
+}
+
+function raporuGoster(metin){
+  if(!metin.includes("BIST TÜM PAYLAR TARAMA RAPORU"))return;
+
+  sonMetin=metin;
+
+  document.getElementById("ilk-bilgi").classList.add("hidden");
+  document.getElementById("ozet").classList.remove("hidden");
+  document.getElementById("rapor-bilgisi").classList.remove("hidden");
+
+  document.getElementById("kontrol").textContent=
+    sayiBul(metin,/Kontrol:\s*(\d+\s*\/\s*\d+)/);
+  document.getElementById("basarili").textContent=
+    sayiBul(metin,/Başarılı:\s*(\d+)/);
+  document.getElementById("ana").textContent=bolumSayisi(metin,1);
+  document.getElementById("guclu").textContent=bolumSayisi(metin,2);
+  document.getElementById("takip").textContent=bolumSayisi(metin,3);
+  document.getElementById("zayif").textContent=bolumSayisi(metin,4);
+
+  const teyit=sayiBul(metin,/TEYİT TAMAM \((\d+)\)/);
+  document.getElementById("teyit").textContent=teyit;
+
+  document.getElementById("hata").textContent=
+    sayiBul(metin,/ANALİZ HATALARI \((\d+)\)/);
+
+  const veriSatiri=metin.match(
+    /GÜNCEL VERİ:.*(?:\n|$)/
+  );
+  const enEski=metin.match(
+    /En eski Yahoo verisi:.*(?:\n|$)/
+  );
+  const tarama=metin.match(/Tarama:.*(?:\n|$)/);
+
+  document.getElementById("meta").textContent=
+    (tarama?tarama[0]:"")+
+    (veriSatiri?veriSatiri[0]:"")+
+    (enEski?enEski[0]:"");
+
+  sonuclar.replaceChildren();
+
+  const bolumler=[
+    ["1. ANA SİNYALLER",1,true],
+    ["2. GÜÇLÜ ADAYLAR",2,false],
+    ["3. TAKİP LİSTESİ",3,false],
+    ["4. ZAYIF HİSSELER",4,false],
+    ["5. 4 SAATLİK TEYİT",5,false],
+    ["6. ESKİ VERİLER",6,false],
+    ["7. ANALİZ HATALARI",7,false]
+  ];
+
+  bolumler.forEach(([baslik,no,acik])=>{
+    const icerik=bolumBul(metin,no);
+    if(icerik.trim()){
+      sonuclar.appendChild(
+        bolumOlustur(baslik,icerik,acik)
+      );
+    }
+  });
+
+  ilerleme.style.width="100%";
+  durum.textContent="Tarama tamamlandı. Sonuçlar hazır.";
+}
+
+function ilerlemeGuncelle(metin){
+  if(metin.includes("BIST TÜM PAYLAR TARAMA RAPORU")){
+    raporuGoster(metin);
+    return;
+  }
+
+  if(metin.includes("BIST TARAMASI DEVAM EDİYOR")){
+    document.getElementById("ilk-bilgi").classList.remove("hidden");
+    document.getElementById("ozet").classList.add("hidden");
+    document.getElementById("rapor-bilgisi").classList.add("hidden");
+    sonuclar.replaceChildren();
+
+    durum.textContent=metin;
+
+    const kontrol=metin.match(/Kontrol:\s*(\d+)\s*\/\s*(\d+)/);
+    if(kontrol){
+      const oran=Number(kontrol[1])/Number(kontrol[2])*100;
+      ilerleme.style.width=oran+"%";
+    }
+  }else if(metin.includes("ALINAMADI")){
+    durum.textContent=metin;
+    ilerleme.style.width="0%";
+  }
+}
+
+const izleyici=new MutationObserver(()=>{
+  const metin=kaynak.textContent||"";
+  if(metin!==sonMetin){
+    ilerlemeGuncelle(metin);
+  }
+});
+
+izleyici.observe(kaynak,{
+  childList:true,
+  subtree:true,
+  characterData:true
+});
+
+})();
+</script>
+
 </body>
 </html>
