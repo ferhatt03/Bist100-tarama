@@ -1,15 +1,24 @@
-
 const hisseler = [
-  "AEFES","AGHOL","AHGAZ","AKBNK","AKCNS","AKFYE","AKSA","AKSEN","ALARK","ALBRK",
-  "ALTNY","ANHYT","ANSGR","ARCLK","ASELS","ASTOR","AYGAZ","BERA","BIMAS","BINHO",
-  "BRSAN","BRYAT","BTCIM","CANTE","CCOLA","CIMSA","CVKMD","CWENE","DOAS","DOHOL",
-  "ECILC","ECZYT","EGEEN","EGGUB","EKGYO","ENERY","ENJSA","ENKAI","ENTRA","EREGL",
-  "EUREN","FENER","FROTO","GARAN","GLRMK","GLYHO","GRSEL","GUBRF","GWIND","HALKB",
-  "HEKTS","ISCTR","ISDMR","ISMEN","KARSN","KATMR","KCAER","KCHOL","KORDS","KRDMD",
-  "LMKDC","MAVI","MGROS","MPARK","OBAMS","ODAS","OTKAR","OYAKC","PAHOL","PETKM",
-  "PGSUS","RGYAS","RYSAS","SAHOL","SASA","SISE","SNGYO","SOKM","TABGD","TAVHL",
-  "TCELL","TCKRC","THYAO","TKFEN","TOASO","TRALT","TRENJ","TRGYO","TRMET","TSKB",
-  "TTKOM","TTRAK","TUKAS","TUPRS","TURSG","ULKER","VAKBN","VESTL","YKBNK","ZOREN"
+  "AEFES", "AGHOL", "AHGAZ", "AKBNK", "AKCNS",
+  "AKFYE", "AKSA", "AKSEN", "ALARK", "ALBRK",
+  "ALTNY", "ANHYT", "ANSGR", "ARCLK", "ASELS",
+  "ASTOR", "AYGAZ", "BERA", "BIMAS", "BINHO",
+  "BRSAN", "BRYAT", "BTCIM", "CANTE", "CCOLA",
+  "CIMSA", "CVKMD", "CWENE", "DOAS", "DOHOL",
+  "ECILC", "ECZYT", "EGEEN", "EGGUB", "EKGYO",
+  "ENERY", "ENJSA", "ENKAI", "ENTRA", "EREGL",
+  "EUREN", "FENER", "FROTO", "GARAN", "GLRMK",
+  "GLYHO", "GRSEL", "GUBRF", "GWIND", "HALKB",
+  "HEKTS", "ISCTR", "ISDMR", "ISMEN", "KARSN",
+  "KATMR", "KCAER", "KCHOL", "KORDS", "KRDMD",
+  "LMKDC", "MAVI", "MGROS", "MPARK", "OBAMS",
+  "ODAS", "OTKAR", "OYAKC", "PAHOL", "PETKM",
+  "PGSUS", "RGYAS", "RYSAS", "SAHOL", "SASA",
+  "SISE", "SNGYO", "SOKM", "TABGD", "TAVHL",
+  "TCELL", "TCKRC", "THYAO", "TKFEN", "TOASO",
+  "TRALT", "TRENJ", "TRGYO", "TRMET", "TSKB",
+  "TTKOM", "TTRAK", "TUKAS", "TUPRS", "TURSG",
+  "ULKER", "VAKBN", "VESTL", "YKBNK", "ZOREN"
 ];
 
 const PERIYOT = 3600;
@@ -19,580 +28,820 @@ const VERI_ARALIGI = "3mo";
 const GRUP_BOYUTU = 5;
 const GRUP_BEKLEME = 700;
 const TAM_BIST_SAYFA = "https://proxy.cors.dev/https://bistsirketleri.com/bist-hisseleri/";
-const AZAMI_VERI_YASI_DAKIKA = 7 * 24 * 60;
 
-function ortalama(a) {
-  const v = a.filter(Number.isFinite);
-  return v.length ? v.reduce((x,y)=>x+y,0)/v.length : NaN;
-}
-
-function ema(a,p) {
-  const r=Array(a.length).fill(NaN);
-  const ilk=a.findIndex(Number.isFinite);
-  if(ilk<0 || a.length-ilk<p) return r;
-  let onceki=ortalama(a.slice(ilk,ilk+p));
-  const bas=ilk+p-1;
-  r[bas]=onceki;
-  const k=2/(p+1);
-  for(let i=bas+1;i<a.length;i++){
-    if(!Number.isFinite(a[i])) continue;
-    onceki=a[i]*k+onceki*(1-k);
-    r[i]=onceki;
-  }
-  return r;
-}
-
-function rsi(a,p=14) {
-  const r=Array(a.length).fill(NaN);
-  if(a.length<=p) return r;
-  let g=0,k=0;
-  for(let i=1;i<=p;i++){
-    const f=a[i]-a[i-1];
-    if(f>0) g+=f; else k-=f;
-  }
-  let ag=g/p,ak=k/p;
-  r[p]=ak===0?100:100-100/(1+ag/ak);
-  for(let i=p+1;i<a.length;i++){
-    const f=a[i]-a[i-1];
-    ag=(ag*(p-1)+Math.max(f,0))/p;
-    ak=(ak*(p-1)+Math.max(-f,0))/p;
-    r[i]=ak===0?100:100-100/(1+ag/ak);
-  }
-  return r;
-}
-
-function stochastic(h,l,c,p=14) {
-  const r=Array(c.length).fill(NaN);
-  for(let i=p-1;i<c.length;i++){
-    const hi=Math.max(...h.slice(i-p+1,i+1));
-    const lo=Math.min(...l.slice(i-p+1,i+1));
-    r[i]=hi===lo?50:(c[i]-lo)/(hi-lo)*100;
-  }
-  return r;
-}
-
-function cci(h,l,c,p=14) {
-  const tp=c.map((v,i)=>(h[i]+l[i]+v)/3);
-  const r=Array(c.length).fill(NaN);
-  for(let i=p-1;i<c.length;i++){
-    const a=tp.slice(i-p+1,i+1);
-    const m=ortalama(a);
-    const s=ortalama(a.map(v=>Math.abs(v-m)));
-    r[i]=s===0?0:(tp[i]-m)/(0.015*s);
-  }
-  return r;
-}
-
-function williamsR(h,l,c,p=14) {
-  const r=Array(c.length).fill(NaN);
-  for(let i=p-1;i<c.length;i++){
-    const hi=Math.max(...h.slice(i-p+1,i+1));
-    const lo=Math.min(...l.slice(i-p+1,i+1));
-    r[i]=hi===lo?-50:(c[i]-hi)/(hi-lo)*100;
-  }
-  return r;
-}
-
-function mfi(h,l,c,v,p=14) {
-  const r=Array(c.length).fill(NaN);
-  const tp=c.map((x,i)=>(h[i]+l[i]+x)/3);
-  for(let i=p;i<c.length;i++){
-    let poz=0,neg=0,eksik=false;
-    for(let j=i-p+1;j<=i;j++){
-      if(!Number.isFinite(v[j]) || !Number.isFinite(v[j-1])){
-        eksik=true;break;
-      }
-      const akis=tp[j]*v[j];
-      if(tp[j]>tp[j-1]) poz+=akis;
-      else if(tp[j]<tp[j-1]) neg+=akis;
-    }
-    if(eksik || poz+neg===0) continue;
-    r[i]=neg===0?100:100-100/(1+poz/neg);
-  }
-  return r;
-}
-
-function ultimateOscillator(h,l,c) {
-  const r=Array(c.length).fill(NaN);
-  const bp=[],tr=[];
-  for(let i=0;i<c.length;i++){
-    const onceki=i?c[i-1]:c[i];
-    bp[i]=c[i]-Math.min(l[i],onceki);
-    tr[i]=Math.max(h[i],onceki)-Math.min(l[i],onceki);
-  }
-  for(let i=28;i<c.length;i++){
-    function oran(p){
-      let b=0,t=0;
-      for(let j=i-p+1;j<=i;j++){b+=bp[j];t+=tr[j];}
-      return t===0?0.5:b/t;
-    }
-    r[i]=100*(4*oran(7)+2*oran(14)+oran(28))/7;
-  }
-  return r;
-}
-
-function momentum(c,p=14) {
-  return c.map((x,i)=>i<p?NaN:x-c[i-p]);
-}
-
-function tkeHesapla(h,l,c,v) {
-  const rs=rsi(c,14);
-  const st=ema(stochastic(h,l,c,14),6);
-  const mf=mfi(h,l,c,v,14);
-  const cc=cci(h,l,c,14);
-  const wr=williamsR(h,l,c,14);
-  const mo=momentum(c,14);
-  const uo=ultimateOscillator(h,l,c);
-  const tke=c.map((_,i)=>{
-    const a=[rs[i],st[i],mf[i],cc[i],wr[i],mo[i],uo[i]];
-    return a.every(Number.isFinite)?ortalama(a):NaN;
+async function bistTumPaylariGetir() {
+  const cevap = await fetch(TAM_BIST_SAYFA + "?_=" + Date.now(), {
+    cache: "no-store",
+    credentials: "omit"
   });
-  return {tke,tkeEma:ema(tke,TKE_EMA_PERIYODU),mfi:mf};
-}
-
-function yukariKesisim(a,b) {
-  for(let i=Math.max(1,a.length-KESISIM_BAKIS);i<a.length;i++){
-    if(a[i-1]<=b[i-1] && a[i]>b[i] &&
-       [a[i-1],b[i-1],a[i],b[i]].every(Number.isFinite)) return true;
+  if (!cevap.ok) {
+    const kod = cevap.headers.get("X-Cors-Error") || cevap.status;
+    throw new Error("BIST pay listesi sayfası alınamadı: " + kod);
   }
-  return false;
-}
 
-function sifirKesisim(a) {
-  for(let i=Math.max(1,a.length-KESISIM_BAKIS);i<a.length;i++){
-    if(Number.isFinite(a[i-1]) && Number.isFinite(a[i]) &&
-       a[i-1]<=0 && a[i]>0) return true;
+  const html = await cevap.text();
+  if (!html || html.length < 10000) {
+    throw new Error("BIST liste sayfası eksik geldi; tarama güvenlik için durduruldu.");
   }
-  return false;
-}
 
-function ayniMumAnaSinyal(a,b,t) {
-  for(let i=Math.max(1,a.length-KESISIM_BAKIS);i<a.length;i++){
-    const e=a[i-1]<=b[i-1] && a[i]>b[i] &&
-      [a[i-1],b[i-1],a[i],b[i]].every(Number.isFinite);
-    const k=Number.isFinite(t[i-1]) && Number.isFinite(t[i]) &&
-      t[i-1]<=0 && t[i]>0;
-    if(e&&k) return i;
+  const belge = new DOMParser().parseFromString(html, "text/html");
+  const satirlar = Array.from(belge.querySelectorAll("tr"));
+  const kodlar = [];
+
+  for (const satir of satirlar) {
+    const hucreler = Array.from(satir.querySelectorAll("th, td"));
+    if (hucreler.length < 2) continue;
+
+    // Tablonun ilk hücresi sıra numarası olabilir. Yalnızca harf içeren
+    // 3-6 karakterli hücreyi pay kodu kabul et; 100, 101 gibi sıra
+    // numaralarını kesinlikle sembol olarak alma.
+    const hucreMetinleri = hucreler.map(h =>
+      (h.textContent || "").trim().toLocaleUpperCase("tr-TR")
+    );
+    const kod = hucreMetinleri.find(m =>
+      /^(?=.*[A-Z])[A-Z0-9]{3,6}$/.test(m)
+    ) || "";
+    if (!kod) continue;
+
+    const sirketAdi = hucreMetinleri.join(" ");
+    // Fonlar, BYF'ler, varantlar ve sertifikalar pay senedi taramasına alınmaz.
+    if (/BORSA YATIRIM FONU|\bBYF\b|YATIRIM FONU|PORTFOY|PORTFÖY|VARANT|SERTIFIKA|SERTİFİKA|ETF/.test(sirketAdi)) continue;
+    if (!kodlar.includes(kod)) kodlar.push(kod);
   }
-  return -1;
+
+  if (kodlar.length < 300) {
+    throw new Error("Sayfadan yeterli pay kodu çıkarılamadı: " + kodlar.length + ". Liste yapısı değişmiş olabilir.");
+  }
+
+  return kodlar.sort();
 }
 
 function dortSaatlikGrupla(mumlar) {
-  const gruplar=new Map();
-  const fmt=new Intl.DateTimeFormat("en-CA",{
-    timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",
-    day:"2-digit",hour:"2-digit",hourCycle:"h23"
+  const gruplar = new Map();
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23"
   });
-  for(const m of mumlar){
-    const p=Object.fromEntries(fmt.formatToParts(new Date(m.zaman*1000)).map(x=>[x.type,x.value]));
-    const saat=Number(p.hour);
-    if(saat<10||saat>=18) continue;
-    const bas=saat<14?10:14;
-    const key=p.year+p.month+p.day+"-"+bas;
-    if(!gruplar.has(key)) gruplar.set(key,[]);
-    gruplar.get(key).push(m);
+  for (const m of mumlar) {
+    const parca = Object.fromEntries(fmt.formatToParts(new Date(m.zaman * 1000)).map(p => [p.type, p.value]));
+    const saat = Number(parca.hour);
+    if (saat < 10 || saat >= 18) continue;
+    const bas = saat < 14 ? 10 : 14;
+    const anahtar = parca.year + parca.month + parca.day + "-" + bas;
+    if (!gruplar.has(anahtar)) gruplar.set(anahtar, []);
+    gruplar.get(anahtar).push(m);
   }
-  const sonuc=[];
-  for(const grup of gruplar.values()){
-    grup.sort((a,b)=>a.zaman-b.zaman);
-    if(grup.length<4) continue;
-    const ilk=grup[0],son=grup[grup.length-1];
-    sonuc.push({
-      zaman:ilk.zaman,open:ilk.open,
-      high:Math.max(...grup.map(x=>x.high)),
-      low:Math.min(...grup.map(x=>x.low)),
-      close:son.close,
-      volume:grup.every(x=>Number.isFinite(x.volume))?
-        grup.reduce((a,x)=>a+x.volume,0):NaN
-    });
+  const sonuc = [];
+  for (const [anahtar, grup] of gruplar) {
+    grup.sort((a,b) => a.zaman-b.zaman);
+    if (grup.length < 4) continue;
+    const ilk = grup[0], son = grup[grup.length-1];
+    sonuc.push({ zaman: ilk.zaman, open: ilk.open, high: Math.max(...grup.map(x=>x.high)), low: Math.min(...grup.map(x=>x.low)), close: son.close, volume: grup.every(x=>Number.isFinite(x.volume)) ? grup.reduce((a,x)=>a+x.volume,0) : NaN });
   }
   return sonuc;
 }
 
-function istanbulZaman(t) {
-  return Number.isFinite(t)?new Intl.DateTimeFormat("tr-TR",{
-    timeZone:"Europe/Istanbul",dateStyle:"short",timeStyle:"short"
-  }).format(new Date(t*1000)):"-";
+function istanbulZaman(timestamp) {
+  if (!Number.isFinite(timestamp)) return "-";
+  return new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit"
+  }).format(new Date(timestamp * 1000));
 }
 
-function formatFiyat(x) {
-  return Number.isFinite(x)?x.toLocaleString("tr-TR",{
-    minimumFractionDigits:2,maximumFractionDigits:2
-  }):"-";
+function formatFiyat(deger) {
+  return Number.isFinite(deger)
+    ? deger.toLocaleString("tr-TR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })
+    : "-";
 }
 
-function formatOran(x) {
-  return Number.isFinite(x)?x.toFixed(2)+"x":"-";
+function formatOran(deger) {
+  return Number.isFinite(deger) ? deger.toFixed(2) + "x" : "-";
 }
 
-function formatDakika(x) {
-  if(!Number.isFinite(x)) return "-";
-  const gun=Math.floor(x/1440);
-  const saat=Math.floor((x%1440)/60);
-  const dakika=Math.floor(x%60);
-  return gun+" gün "+saat+" saat "+dakika+" dk";
+function formatHacim(deger) {
+  return Number.isFinite(deger)
+    ? deger.toLocaleString("tr-TR")
+    : "VERİ YOK";
 }
 
-async function bistTumPaylariGetir() {
-  const cevap=await fetch(TAM_BIST_SAYFA+"?_="+Date.now(),{
-    cache:"no-store",credentials:"omit"
-  });
-  if(!cevap.ok){
-    throw new Error("BIST listesi HTTP "+cevap.status+
-      " | Kaynak: "+(cevap.headers.get("X-Cors-Source")||"-")+
-      " | Proxy: "+(cevap.headers.get("X-Cors-Error")||"-"));
+function ortalama(dizi) {
+  const gecerli = dizi.filter(Number.isFinite);
+  return gecerli.length
+    ? gecerli.reduce((a, b) => a + b, 0) / gecerli.length
+    : NaN;
+}
+
+function ema(dizi, periyot) {
+  const sonuc = Array(dizi.length).fill(NaN);
+  const ilk = dizi.findIndex(Number.isFinite);
+  if (ilk < 0 || dizi.length - ilk < periyot) return sonuc;
+
+  let onceki = ortalama(dizi.slice(ilk, ilk + periyot));
+  if (!Number.isFinite(onceki)) return sonuc;
+
+  const ilkIndex = ilk + periyot - 1;
+  sonuc[ilkIndex] = onceki;
+  const carpan = 2 / (periyot + 1);
+
+  for (let i = ilkIndex + 1; i < dizi.length; i++) {
+    if (!Number.isFinite(dizi[i])) continue;
+    onceki = dizi[i] * carpan + onceki * (1 - carpan);
+    sonuc[i] = onceki;
   }
-  const html=await cevap.text();
-  if(!html||html.length<10000) throw new Error("BIST listesi eksik geldi.");
-  const belge=new DOMParser().parseFromString(html,"text/html");
-  const kodlar=[];
-  for(const satir of belge.querySelectorAll("tr")){
-    const hucre=Array.from(satir.querySelectorAll("th,td"));
-    if(hucre.length<2) continue;
-    const kod=(hucre[0].textContent||"").trim().toLocaleUpperCase("tr-TR");
-    if(!/^[A-Z0-9]{3,6}$/.test(kod)) continue;
-    const ad=hucre.slice(1).map(x=>x.textContent||"").join(" ").toLocaleUpperCase("tr-TR");
-    if(/BORSA YATIRIM FONU|\bBYF\b|YATIRIM FONU|PORTFOY|PORTFÖY|VARANT|SERTIFIKA|SERTİFİKA|ETF/.test(ad)) continue;
-    if(!kodlar.includes(kod)) kodlar.push(kod);
-  }
-  if(kodlar.length<300) throw new Error("Yeterli pay kodu alınamadı: "+kodlar.length);
-  return kodlar.sort();
+  return sonuc;
 }
 
-async function yahooVerisiAl(sembol) {
-  const adresler=["query1.finance.yahoo.com","query2.finance.yahoo.com"];
-  const hatalar=[];
-  for(const sunucu of adresler){
-    const hedef="https://"+sunucu+
-      "/v8/finance/chart/"+encodeURIComponent(sembol)+
-      "?range="+VERI_ARALIGI+"&interval=1h&includePrePost=false";
-    const url="https://proxy.cors.dev/"+hedef+"&_="+Date.now();
-    try{
-      const cevap=await fetch(url,{cache:"no-store",credentials:"omit"});
-      if(!cevap.ok){
-        const kaynak=cevap.headers.get("X-Cors-Source")||"belirsiz";
-        const hata=cevap.headers.get("X-Cors-Error")||"-";
-        const govde=await cevap.text();
-        hatalar.push(sunucu+": HTTP "+cevap.status+
-          " | Kaynak: "+kaynak+" | Proxy: "+hata+
-          " | "+govde.slice(0,100));
-        continue;
+function rsi(dizi, periyot = 14) {
+  const sonuc = Array(dizi.length).fill(NaN);
+  if (dizi.length <= periyot) return sonuc;
+
+  let kazanc = 0, kayip = 0;
+  for (let i = 1; i <= periyot; i++) {
+    const fark = dizi[i] - dizi[i - 1];
+    if (fark > 0) kazanc += fark;
+    else kayip -= fark;
+  }
+
+  let ortKazanc = kazanc / periyot;
+  let ortKayip = kayip / periyot;
+  sonuc[periyot] = ortKayip === 0
+    ? 100
+    : 100 - 100 / (1 + ortKazanc / ortKayip);
+
+  for (let i = periyot + 1; i < dizi.length; i++) {
+    const fark = dizi[i] - dizi[i - 1];
+    ortKazanc =
+      (ortKazanc * (periyot - 1) + Math.max(fark, 0)) / periyot;
+    ortKayip =
+      (ortKayip * (periyot - 1) + Math.max(-fark, 0)) / periyot;
+    sonuc[i] = ortKayip === 0
+      ? 100
+      : 100 - 100 / (1 + ortKazanc / ortKayip);
+  }
+  return sonuc;
+}
+
+function stochastic(high, low, close, periyot = 14) {
+  const sonuc = Array(close.length).fill(NaN);
+  for (let i = periyot - 1; i < close.length; i++) {
+    const enYuksek = Math.max(...high.slice(i - periyot + 1, i + 1));
+    const enDusuk = Math.min(...low.slice(i - periyot + 1, i + 1));
+    const fark = enYuksek - enDusuk;
+    sonuc[i] = fark === 0 ? 50 : ((close[i] - enDusuk) / fark) * 100;
+  }
+  return sonuc;
+}
+
+function cci(high, low, close, periyot = 14) {
+  const tp = close.map((c, i) => (high[i] + low[i] + c) / 3);
+  const sonuc = Array(close.length).fill(NaN);
+  for (let i = periyot - 1; i < tp.length; i++) {
+    const parca = tp.slice(i - periyot + 1, i + 1);
+    const ort = ortalama(parca);
+    const sapma = ortalama(parca.map(x => Math.abs(x - ort)));
+    sonuc[i] = sapma === 0 ? 0 : (tp[i] - ort) / (0.015 * sapma);
+  }
+  return sonuc;
+}
+
+function williamsR(high, low, close, periyot = 14) {
+  const sonuc = Array(close.length).fill(NaN);
+  for (let i = periyot - 1; i < close.length; i++) {
+    const enYuksek = Math.max(...high.slice(i - periyot + 1, i + 1));
+    const enDusuk = Math.min(...low.slice(i - periyot + 1, i + 1));
+    const fark = enYuksek - enDusuk;
+    sonuc[i] = fark === 0
+      ? -50
+      : ((enYuksek - close[i]) / fark) * -100;
+  }
+  return sonuc;
+}
+
+function momentum(close, periyot = 14) {
+  return close.map((fiyat, i) =>
+    i < periyot ? NaN : fiyat - close[i - periyot]
+  );
+}
+
+function mfi(high, low, close, volume, periyot = 14) {
+  const sonuc = Array(close.length).fill(NaN);
+  const tipik = close.map((c, i) => (high[i] + low[i] + c) / 3);
+  const paraAkisi = tipik.map((t, i) =>
+    Number.isFinite(volume[i]) && volume[i] >= 0
+      ? t * volume[i]
+      : NaN
+  );
+
+  for (let i = periyot; i < close.length; i++) {
+    let pozitif = 0, negatif = 0, veriEksik = false;
+
+    for (let j = i - periyot + 1; j <= i; j++) {
+      if (!Number.isFinite(volume[j]) ||
+          !Number.isFinite(paraAkisi[j])) {
+        veriEksik = true;
+        break;
       }
-      const json=await cevap.json();
-      if(json?.chart?.error){
-        hatalar.push(sunucu+": "+JSON.stringify(json.chart.error).slice(0,150));
-        continue;
-      }
-      const sonuc=json?.chart?.result?.[0];
-      if(sonuc?.timestamp?.length) return sonuc;
-      hatalar.push(sunucu+": Yahoo verisi boş.");
-    }catch(e){
-      hatalar.push(sunucu+": "+(e.message||String(e)));
+      if (tipik[j] > tipik[j - 1]) pozitif += paraAkisi[j];
+      else if (tipik[j] < tipik[j - 1]) negatif += paraAkisi[j];
     }
+
+    if (veriEksik || pozitif + negatif === 0) continue;
+    sonuc[i] = negatif === 0
+      ? 100
+      : 100 - 100 / (1 + pozitif / negatif);
   }
-  throw new Error(hatalar.join(" || "));
+  return sonuc;
 }
 
-async function hisseAnaliz(sembol) {
-  const sonuc=await yahooVerisiAl(sembol+".IS");
-  const meta=sonuc.meta||{};
-  const q=sonuc.indicators?.quote?.[0];
-  if(!q) throw new Error("Mum verisi bulunamadı.");
+function ultimateOscillator(high, low, close) {
+  const sonuc = Array(close.length).fill(NaN);
+  const bp = Array(close.length).fill(0);
+  const tr = Array(close.length).fill(0);
 
-  const simdi=Math.floor(Date.now()/1000);
-  const hamZamanlar=sonuc.timestamp||[];
-  const sonHamZaman=hamZamanlar.length?hamZamanlar[hamZamanlar.length-1]:NaN;
-  const hamVeriYasi=Number.isFinite(sonHamZaman)?
-    Math.max(0,(simdi-sonHamZaman)/60):Infinity;
-  const veriGuncel=Number.isFinite(hamVeriYasi) &&
-    hamVeriYasi<=AZAMI_VERI_YASI_DAKIKA;
-
-  const mumlar=[];
-  for(let i=0;i<hamZamanlar.length;i++){
-    const o=q.open?.[i],h=q.high?.[i],l=q.low?.[i],c=q.close?.[i],v=q.volume?.[i];
-    if(![o,h,l,c].every(Number.isFinite)) continue;
-    const zaman=hamZamanlar[i];
-    if(zaman+PERIYOT>simdi) continue;
-    mumlar.push({zaman,open:o,high:h,low:l,close:c,volume:Number.isFinite(v)?v:NaN});
+  for (let i = 1; i < close.length; i++) {
+    const oncekiClose = close[i - 1];
+    const gercekDusuk = Math.min(low[i], oncekiClose);
+    const gercekYuksek = Math.max(high[i], oncekiClose);
+    bp[i] = close[i] - gercekDusuk;
+    tr[i] = gercekYuksek - gercekDusuk;
   }
 
-  if(mumlar.length<40) throw new Error("Yeterli kapanmış saatlik mum yok: "+mumlar.length);
-
-  const c=mumlar.map(x=>x.close);
-  const h=mumlar.map(x=>x.high);
-  const l=mumlar.map(x=>x.low);
-  const v=mumlar.map(x=>x.volume);
-  const e8=ema(c,8),e20=ema(c,20);
-  const {tke,tkeEma,mfi:mf}=tkeHesapla(h,l,c,v);
-  const son=mumlar.length-1;
-  const sonMum=mumlar[son];
-  const anaIndex=ayniMumAnaSinyal(e8,e20,tke);
-  const oncekiHacimler=v.slice(Math.max(0,son-20),son).filter(x=>Number.isFinite(x)&&x>0);
-  const ortHacim=ortalama(oncekiHacimler);
-  const hacimOrani=Number.isFinite(v[son])&&v[son]>0&&ortHacim>0?v[son]/ortHacim:NaN;
-
-  const mum4=dortSaatlikGrupla(mumlar);
-  let teyit4s="VERİ YETERSİZ",e84=NaN,e204=NaN,tke4=NaN,yon4="-",fiyat4=false;
-  if(mum4.length>=40){
-    const c4=mum4.map(x=>x.close);
-    const h4=mum4.map(x=>x.high);
-    const l4=mum4.map(x=>x.low);
-    const v4=mum4.map(x=>x.volume);
-    const a=ema(c4,8),b=ema(c4,20);
-    const t=tkeHesapla(h4,l4,c4,v4).tke;
-    const z=mum4.length-1;
-    e84=a[z];e204=b[z];tke4=t[z];
-    yon4=t[z]>t[z-1]?"YUKARI":t[z]<t[z-1]?"AŞAĞI":"YATAY";
-    fiyat4=c4[z]>b[z];
-    const puan=(e84>e204?1:0)+(fiyat4?1:0)+(tke4>20?1:0)+(yon4==="YUKARI"?1:0);
-    teyit4s=puan===4?"TAMAM":puan>=2?"BEKLİYOR":"ZAYIF";
+  for (let i = 28; i < close.length; i++) {
+    function oran(periyot) {
+      let toplamBP = 0, toplamTR = 0;
+      for (let j = i - periyot + 1; j <= i; j++) {
+        toplamBP += bp[j];
+        toplamTR += tr[j];
+      }
+      return toplamTR === 0 ? 0.5 : toplamBP / toplamTR;
+    }
+    sonuc[i] = 100 * (4 * oran(7) + 2 * oran(14) + oran(28)) / 7;
   }
+  return sonuc;
+}
+
+function tkeHesapla(high, low, close, volume) {
+  const rsiDeger = rsi(close, 14);
+  const stochDeger = ema(stochastic(high, low, close, 14), 6);
+  const mfiDeger = mfi(high, low, close, volume, 14);
+  const cciDeger = cci(high, low, close, 14);
+  const williamsDeger = williamsR(high, low, close, 14);
+  const momentumDeger = momentum(close, 14);
+  const ultimateDeger = ultimateOscillator(high, low, close);
+
+  const tke = close.map((_, i) => {
+    const degerler = [
+      rsiDeger[i], stochDeger[i], mfiDeger[i], cciDeger[i],
+      williamsDeger[i], momentumDeger[i], ultimateDeger[i]
+    ];
+    return degerler.every(Number.isFinite)
+      ? ortalama(degerler)
+      : NaN;
+  });
 
   return {
-    sembol,kapanis:sonMum.close,
-    canliFiyat:Number.isFinite(meta.regularMarketPrice)?meta.regularMarketPrice:sonMum.close,
-    ema8:e8[son],ema20:e20[son],
-    emaDurum:e8[son]>e20[son]?"EMA8 ÜSTTE":"EMA8 ALTTA",
-    fiyatEma20Ustu:sonMum.close>e20[son],
-    tke:tke[son],tkeEma:tkeEma[son],
-    tkeYon:tke[son]>tke[son-1]?"YUKARI":tke[son]<tke[son-1]?"AŞAĞI":"YATAY",
-    mfiDurumu:Number.isFinite(mf[son])?"GEÇERLİ":"HACİM VERİSİ EKSİK",
-    tkeSifirYukariKesisim:sifirKesisim(tke),
-    emaKesim:yukariKesisim(e8,e20),
-    anaSinyal:anaIndex>=0,
-    anaSinyalZamani:anaIndex>=0?mumlar[anaIndex].zaman:NaN,
-    hacim:v[son],hacimOrani,
-    sonMumZamani:sonMum.zaman,
-    sonHamZaman,hamVeriYasi,veriGuncel,
-    kapanmisMumSayisi:mumlar.length,
-    mumSayisi4s:mum4.length,teyit4s,e84,e204,tke4,yon4,fiyat4
+    tke,
+    tkeEma: ema(tke, TKE_EMA_PERIYODU),
+    mfi: mfiDeger
   };
 }
 
-function siniflandir(x) {
-  if(!x.veriGuncel) return "ESKİ VERİ";
-  if(x.anaSinyal) return "ANA SİNYAL";
+function yukariKesisim(a, b, bakis = KESISIM_BAKIS) {
+  const baslangic = Math.max(1, a.length - bakis);
+  for (let i = a.length - 1; i >= baslangic; i--) {
+    if (
+      Number.isFinite(a[i - 1]) &&
+      Number.isFinite(b[i - 1]) &&
+      Number.isFinite(a[i]) &&
+      Number.isFinite(b[i]) &&
+      a[i - 1] <= b[i - 1] &&
+      a[i] > b[i]
+    ) return true;
+  }
+  return false;
+}
 
-  const k=[
-    x.ema8>x.ema20,
-    x.fiyatEma20Ustu,
-    x.tkeYon==="YUKARI",
-    Number.isFinite(x.tke)&&x.tke>0,
-    x.mfiDurumu==="GEÇERLİ",
-    Number.isFinite(x.hacimOrani)&&x.hacimOrani>=1
+function sifirYukariKesisim(dizi, bakis = KESISIM_BAKIS) {
+  const baslangic = Math.max(1, dizi.length - bakis);
+  for (let i = dizi.length - 1; i >= baslangic; i--) {
+    if (
+      Number.isFinite(dizi[i - 1]) &&
+      Number.isFinite(dizi[i]) &&
+      dizi[i - 1] <= 0 &&
+      dizi[i] > 0
+    ) return true;
+  }
+  return false;
+}
+
+function seviyeYukariKesisim(dizi, seviye, bakis = KESISIM_BAKIS) {
+  const baslangic = Math.max(1, dizi.length - bakis);
+  for (let i = dizi.length - 1; i >= baslangic; i--) {
+    if (
+      Number.isFinite(dizi[i - 1]) &&
+      Number.isFinite(dizi[i]) &&
+      dizi[i - 1] <= seviye &&
+      dizi[i] > seviye
+    ) return true;
+  }
+  return false;
+}
+
+// EMA8/EMA20 ve TKE sifir kesişimi ayni kapanmis mumda olmali.
+function ayniMumAnaSinyal(ema8, ema20, tke, bakis = KESISIM_BAKIS) {
+  const baslangic = Math.max(1, ema8.length - bakis);
+  for (let i = ema8.length - 1; i >= baslangic; i--) {
+    const emaKesti =
+      Number.isFinite(ema8[i - 1]) &&
+      Number.isFinite(ema20[i - 1]) &&
+      Number.isFinite(ema8[i]) &&
+      Number.isFinite(ema20[i]) &&
+      ema8[i - 1] <= ema20[i - 1] &&
+      ema8[i] > ema20[i];
+
+    const tkeKesti =
+      Number.isFinite(tke[i - 1]) &&
+      Number.isFinite(tke[i]) &&
+      tke[i - 1] <= 0 &&
+      tke[i] > 0;
+
+    if (emaKesti && tkeKesti) return i;
+  }
+  return -1;
+}
+
+async function hisseAnaliz(sembol) {
+  const yahooSembol = sembol + ".IS";
+  const url =
+    "https://proxy.cors.dev/https://query1.finance.yahoo.com/v8/finance/chart/" +
+    yahooSembol +
+    "?range=" + VERI_ARALIGI +
+    "&interval=1h&includePrePost=false&_=" + Date.now();
+
+  const cevap = await fetch(url, { cache: "no-store" });
+  if (!cevap.ok) {
+    throw new Error("Yahoo veri isteği başarısız: " + cevap.status);
+  }
+
+  const json = await cevap.json();
+  const sonuc = json?.chart?.result?.[0];
+  if (!sonuc || !sonuc.timestamp?.length) {
+    throw new Error("Yahoo verisi bulunamadı");
+  }
+
+  const meta = sonuc.meta || {};
+  const q = sonuc.indicators?.quote?.[0];
+  if (!q) throw new Error("Mum verileri bulunamadı");
+
+  const simdi = Math.floor(Date.now() / 1000);
+  const hamMumlar = [];
+
+  for (let i = 0; i < sonuc.timestamp.length; i++) {
+    const zaman = sonuc.timestamp[i];
+    const acilis = q.open?.[i];
+    const yuksek = q.high?.[i];
+    const dusuk = q.low?.[i];
+    const kapanis = q.close?.[i];
+    const hacim = q.volume?.[i];
+
+    if (
+      !Number.isFinite(acilis) ||
+      !Number.isFinite(yuksek) ||
+      !Number.isFinite(dusuk) ||
+      !Number.isFinite(kapanis)
+    ) continue;
+
+    hamMumlar.push({
+      zaman,
+      open: acilis,
+      high: yuksek,
+      low: dusuk,
+      close: kapanis,
+      volume: Number.isFinite(hacim) ? hacim : NaN
+    });
+  }
+
+  // Tamamlanmamis saatlik mumlar hesaba katilmaz.
+  const mumlar = hamMumlar.filter(
+    m => m.zaman + PERIYOT <= simdi
+  );
+
+  if (mumlar.length < 40) {
+    throw new Error("Yeterli kapanmış saatlik mum yok: " + mumlar.length);
+  }
+
+  const close = mumlar.map(m => m.close);
+  const high = mumlar.map(m => m.high);
+  const low = mumlar.map(m => m.low);
+  const volume = mumlar.map(m => m.volume);
+
+  const ema8 = ema(close, 8);
+  const ema20 = ema(close, 20);
+  const { tke, tkeEma, mfi: mfiDeger } =
+    tkeHesapla(high, low, close, volume);
+
+  const son = mumlar.length - 1;
+  const sonMum = mumlar[son];
+  const sonTke = tke[son];
+  const oncekiTke = tke[son - 1];
+
+  const tkeYon =
+    Number.isFinite(sonTke) && Number.isFinite(oncekiTke)
+      ? sonTke > oncekiTke ? "YUKARI"
+        : sonTke < oncekiTke ? "AŞAĞI" : "YATAY"
+      : "HESAPLANAMADI";
+
+  const emaKesim = yukariKesisim(ema8, ema20);
+  const tkeSifirYukariKesisim = sifirYukariKesisim(tke);
+  const tke20Kesisim = seviyeYukariKesisim(tke, 20);
+  const anaSinyalMumIndex = ayniMumAnaSinyal(ema8, ema20, tke);
+  const anaSinyal = anaSinyalMumIndex >= 0;
+
+  const sonHacim = sonMum.volume;
+  const oncekiHacimler = volume.slice(Math.max(0, son - 20), son);
+  const gecerliHacimler = oncekiHacimler.filter(
+    v => Number.isFinite(v) && v > 0
+  );
+  const ortHacim = ortalama(gecerliHacimler);
+
+  const hacimOrani =
+    Number.isFinite(sonHacim) &&
+    sonHacim > 0 &&
+    Number.isFinite(ortHacim) &&
+    ortHacim > 0
+      ? sonHacim / ortHacim
+      : NaN;
+
+  const canliFiyat =
+    Number.isFinite(meta.regularMarketPrice) &&
+    meta.regularMarketPrice > 0
+      ? meta.regularMarketPrice
+      : sonMum.close;
+
+  const sonHamZaman = hamMumlar[hamMumlar.length - 1]?.zaman;
+  const piyasaZamani = Number.isFinite(meta.regularMarketTime)
+    ? meta.regularMarketTime
+    : NaN;
+
+  const hacimDoluMumSayisi = mumlar.filter(
+    m => Number.isFinite(m.volume) && m.volume > 0
+  ).length;
+
+  const son14Mum = mumlar.slice(-14);
+  const son14HacimEksik = son14Mum.filter(
+    m => !Number.isFinite(m.volume)
+  ).length;
+
+  const mfiDurumu = Number.isFinite(mfiDeger[son])
+    ? "GEÇERLİ"
+    : "HACİM VERİSİ EKSİK VEYA İŞLEM YOK";
+
+  const tkeDurumu = Number.isFinite(sonTke)
+    ? "GEÇERLİ"
+    : "HESAPLANAMADI";
+
+  const mumlar4s = dortSaatlikGrupla(mumlar);
+  let teyit4s = "VERİ YETERSİZ";
+  let ema84s = NaN, ema204s = NaN, tke4s = NaN, tkeYon4s = "-", fiyat4sUstu = false;
+  if (mumlar4s.length >= 40) {
+    const c4 = mumlar4s.map(m=>m.close), h4=mumlar4s.map(m=>m.high), l4=mumlar4s.map(m=>m.low), v4=mumlar4s.map(m=>m.volume);
+    const e84=ema(c4,8), e204=ema(c4,20), t4=tkeHesapla(h4,l4,c4,v4).tke;
+    const z=mumlar4s.length-1;
+    ema84s=e84[z]; ema204s=e204[z]; tke4s=t4[z];
+    tkeYon4s=Number.isFinite(t4[z]) && Number.isFinite(t4[z-1]) ? (t4[z]>t4[z-1] ? "YUKARI" : t4[z]<t4[z-1] ? "AŞAĞI" : "YATAY") : "-";
+    fiyat4sUstu=c4[z]>e204[z];
+    const olumlu=ema84s>ema204s && fiyat4sUstu && tke4s>20 && tkeYon4s==="YUKARI";
+    const kismen= (ema84s>ema204s?1:0)+(fiyat4sUstu?1:0)+(tke4s>20?1:0)+(tkeYon4s==="YUKARI"?1:0);
+    teyit4s=olumlu ? "TAMAM" : kismen>=2 ? "BEKLİYOR" : "ZAYIF";
+  }
+
+  return {
+    sembol,
+    kapanis: sonMum.close,
+    canliFiyat,
+    ema8: ema8[son],
+    ema20: ema20[son],
+    emaDurum:
+      ema8[son] > ema20[son] ? "EMA8 ÜSTTE" : "EMA8 ALTTA",
+    fiyatEma20Ustu: sonMum.close > ema20[son],
+    tke: sonTke,
+    tkeEma: tkeEma[son],
+    tkeYon,
+    tkeDurumu,
+    mfiDurumu,
+    tkeSifirYukariKesisim,
+    tke20Kesisim,
+    emaKesim,
+    anaSinyal,
+    anaSinyalZamani: anaSinyal
+      ? mumlar[anaSinyalMumIndex].zaman
+      : NaN,
+    hacim: sonHacim,
+    hacimOrani,
+    hacimDoluMumSayisi,
+    son14HacimEksik,
+    sonMumZamani: sonMum.zaman,
+    sonHamZaman,
+    hamVeriYasi: Number.isFinite(sonHamZaman)
+      ? (simdi - sonHamZaman) / 60
+      : NaN,
+    piyasaZamani,
+    piyasaVeriYasi: Number.isFinite(piyasaZamani)
+      ? (simdi - piyasaZamani) / 60
+      : NaN,
+    hamMumSayisi: hamMumlar.length,
+    kapanmisMumSayisi: mumlar.length,
+    mumSayisi4s: mumlar4s.length,
+    teyit4s, ema84s, ema204s, tke4s, tkeYon4s, fiyat4sUstu
+  };
+}
+
+// Son mumdaki kosullara gore siniflandirma.
+// Ana sinyal ayri tutulur; gecmis kesişim tek basina guclu aday yapmaz.
+function siniflandir(x) {
+  if (x.anaSinyal) return "ANA SİNYAL";
+
+  const kosullar = [
+    Number.isFinite(x.ema8) &&
+      Number.isFinite(x.ema20) && x.ema8 > x.ema20,
+    x.fiyatEma20Ustu === true,
+    x.tkeYon === "YUKARI",
+    Number.isFinite(x.tke) && x.tke > 0,
+    x.mfiDurumu === "GEÇERLİ",
+    Number.isFinite(x.hacimOrani) && x.hacimOrani >= 1
   ];
-  const p=k.filter(Boolean).length;
-  if(p===6) return "GÜÇLÜ ADAY";
-  if(p>=3) return "TAKİP LİSTESİ";
+
+  const puan = kosullar.filter(Boolean).length;
+
+  if (kosullar.every(Boolean)) return "GÜÇLÜ ADAY";
+  if (puan >= 3) return "TAKİP LİSTESİ";
   return "ZAYIF";
 }
 
-// Takip ve zayıf listeleri için ayrıntılı açıklama üretir.
-function hisseDetaySatiri(x) {
-  const neden=[];
-  if(x.ema8>x.ema20) neden.push("EMA8>EMA20");
-  else neden.push("EMA8<EMA20");
+function anaSinyalSatiri(x) {
+  return (
+    x.sembol +
+    " | EMA: " + x.emaDurum +
+    " | Fiyat EMA20: " + (x.fiyatEma20Ustu ? "ÜSTÜNDE" : "ALTINDA") +
+    " | TKE: " + formatFiyat(x.tke) + " (" + x.tkeYon + ")" +
+    " | Sinyal mumu: " + istanbulZaman(x.anaSinyalZamani) +
+    "\n"
+  );
+}
 
-  if(x.fiyatEma20Ustu) neden.push("Fiyat EMA20 üstünde");
-  else neden.push("Fiyat EMA20 altında");
+function gucluAdaySatiri(x) {
+  return (
+    x.sembol +
+    " | Kapanış: " + formatFiyat(x.kapanis) +
+    " | EMA8/20: " + x.emaDurum +
+    " | TKE: " + formatFiyat(x.tke) + " (" + x.tkeYon + ")" +
+    " | Hacim: " + formatOran(x.hacimOrani) +
+    "\n"
+  );
+}
 
-  neden.push("TKE "+(x.tkeYon||"-"));
-  neden.push("TKE "+(Number.isFinite(x.tke)&&x.tke>0?"pozitif":"negatif"));
+async function bistTarama() {
+  const liste = document.querySelector("#hisse-listesi");
+  const buton = document.querySelector("#tarama-butonu");
 
-  if(x.mfiDurumu==="GEÇERLİ") neden.push("MFI geçerli");
-  else neden.push("MFI verisi eksik");
+  if (window.taramaDevamEdiyor) return;
+  window.taramaDevamEdiyor = true;
 
-  if(Number.isFinite(x.hacimOrani)){
-    neden.push("Hacim "+formatOran(x.hacimOrani));
-  } else {
-    neden.push("Hacim oranı hesaplanamadı");
+  if (buton) {
+    buton.disabled = true;
+    buton.textContent = "TARAMA YAPILIYOR...";
   }
 
-  return x.sembol+
-    " | Kapanış: "+formatFiyat(x.kapanis)+
-    " | EMA8: "+formatFiyat(x.ema8)+
-    " | EMA20: "+formatFiyat(x.ema20)+
-    " | "+x.emaDurum+
-    " | Fiyat: "+(x.fiyatEma20Ustu?"EMA20 ÜSTÜNDE":"EMA20 ALTINDA")+
-    " | TKE: "+formatFiyat(x.tke)+" ("+x.tkeYon+")"+
-    " | Hacim: "+formatOran(x.hacimOrani)+
-    " | Neden: "+neden.join(", ");
-}
-
-function bistTarama() {
-  return bistTaramaCalistir();
-}
-
-async function bistTaramaCalistir() {
-  const liste=document.querySelector("#hisse-listesi");
-  const buton=document.querySelector("#tarama-butonu");
-  if(window.taramaDevamEdiyor) return;
-  window.taramaDevamEdiyor=true;
-  if(buton){buton.disabled=true;buton.textContent="TARAMA YAPILIYOR...";}
-
-  const sonuclar=[],hatalar=[];
-  let taramaListesi=[],listeKaynakNotu="";
-  try{
-    taramaListesi=await bistTumPaylariGetir();
-    listeKaynakNotu="GÜNCEL TÜM PAY LİSTESİ";
-  }catch(e){
-    if(liste) liste.textContent="TÜM BIST LİSTESİ ALINAMADI\n"+
-      e.message+"\nTarama güvenlik için durduruldu.";
-    window.taramaDevamEdiyor=false;
-    if(buton){buton.disabled=false;buton.textContent="TARAMAYI BAŞLAT";}
+  const sonuclar = [];
+  const hatalar = [];
+  let taramaListesi = hisseler.slice();
+  let listeKaynakNotu = "YEDEK 100 HİSSELİK LİSTE";
+  try {
+    taramaListesi = await bistTumPaylariGetir();
+    listeKaynakNotu = "GÜNCEL TÜM PAY LİSTESİ";
+  } catch (e) {
+    if (liste) liste.textContent = "TÜM BIST LİSTESİ ALINAMADI\n" + e.message + "\nGüvenli tarafta kalmak için tarama durduruldu. Eski 100 hisseye otomatik düşülmedi.";
+    window.taramaDevamEdiyor = false;
+    if (buton) { buton.disabled = false; buton.textContent = "TARAMAYI BAŞLAT"; }
     return;
   }
+  const toplamHisse = taramaListesi.length;
+  const toplamGrup = Math.ceil(toplamHisse / GRUP_BOYUTU);
+  const bekle = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  const toplam=taramaListesi.length;
-  const gruplar=Math.ceil(toplam/GRUP_BOYUTU);
-  const bekle=ms=>new Promise(r=>setTimeout(r,ms));
+  try {
+    for (
+      let baslangic = 0;
+      baslangic < toplamHisse;
+      baslangic += GRUP_BOYUTU
+    ) {
+      const grup = taramaListesi.slice(
+        baslangic,
+        baslangic + GRUP_BOYUTU
+      );
+      const grupNo = Math.floor(baslangic / GRUP_BOYUTU) + 1;
 
-  try{
-    for(let bas=0;bas<toplam;bas+=GRUP_BOYUTU){
-      const grup=taramaListesi.slice(bas,bas+GRUP_BOYUTU);
-      const no=Math.floor(bas/GRUP_BOYUTU)+1;
+      if (liste) {
+        liste.textContent =
+          "BIST TARAMASI DEVAM EDİYOR\n\n" +
+          "Tamamlanan grup: " + (grupNo - 1) + " / " + toplamGrup +
+          "\nKontrol edilen hisse: " +
+          (sonuclar.length + hatalar.length) + " / " + toplamHisse +
+          "\nBaşarılı analiz: " + sonuclar.length +
+          "\nHata sayısı: " + hatalar.length +
+          "\n\nŞu an taranan grup:\n" + grup.join(", ") +
+          "\n\nLütfen tarama bitene kadar bekleyin.";
+      }
 
-      if(liste) liste.textContent=
-        "BIST TARAMASI DEVAM EDİYOR\n\n"+
-        "Tamamlanan grup: "+(no-1)+" / "+gruplar+
-        "\nKontrol: "+(sonuclar.length+hatalar.length)+" / "+toplam+
-        "\nBaşarılı: "+sonuclar.length+
-        "\nHata: "+hatalar.length+
-        "\n\nTaranan grup: "+grup.join(", ");
+      const grupSonuclari = await Promise.allSettled(
+        grup.map(sembol => hisseAnaliz(sembol))
+      );
 
-      const cevaplar=await Promise.allSettled(grup.map(hisseAnaliz));
-      cevaplar.forEach((r,i)=>{
-        if(r.status==="fulfilled") sonuclar.push(r.value);
-        else hatalar.push(grup[i]+": "+(r.reason?.message||String(r.reason)));
+      for (let i = 0; i < grupSonuclari.length; i++) {
+        const sonuc = grupSonuclari[i];
+        const sembol = grup[i];
+
+        if (sonuc.status === "fulfilled") {
+          sonuclar.push(sonuc.value);
+        } else {
+          const mesaj = sonuc.reason?.message ||
+            String(sonuc.reason || "Bilinmeyen hata");
+          hatalar.push(sembol + ": " + mesaj);
+        }
+      }
+
+      if (liste) {
+        liste.textContent =
+          "BIST TARAMASI DEVAM EDİYOR\n\n" +
+          "Tamamlanan grup: " + grupNo + " / " + toplamGrup +
+          "\nKontrol edilen hisse: " +
+          (sonuclar.length + hatalar.length) + " / " + toplamHisse +
+          "\nBaşarılı analiz: " + sonuclar.length +
+          "\nHata sayısı: " + hatalar.length +
+          "\n\nSon tamamlanan grup:\n" + grup.join(", ") +
+          "\n\nSonraki grup hazırlanıyor...";
+      }
+
+      if (baslangic + GRUP_BOYUTU < toplamHisse) {
+        await bekle(GRUP_BEKLEME);
+      }
+    }
+
+    const anaSinyaller = sonuclar.filter(
+      x => siniflandir(x) === "ANA SİNYAL"
+    );
+    const gucluAdaylar = sonuclar.filter(
+      x => siniflandir(x) === "GÜÇLÜ ADAY"
+    );
+    const takipListesi = sonuclar.filter(
+      x => siniflandir(x) === "TAKİP LİSTESİ"
+    );
+    const zayifHisseler = sonuclar.filter(
+      x => siniflandir(x) === "ZAYIF"
+    );
+    const teyitTamam = sonuclar.filter(x => x.teyit4s === "TAMAM");
+    const teyitBekleyen = sonuclar.filter(x => x.teyit4s === "BEKLİYOR");
+    const teyitZayif = sonuclar.filter(x => x.teyit4s === "ZAYIF");
+    const teyitVeriYok = sonuclar.filter(x => x.teyit4s === "VERİ YETERSİZ");
+
+    // Güçlü adaylar ile 4 saatlik teyidi TAMAM olanların otomatik kesişimi.
+    // Mevcut sinyal koşullarına dokunmaz; yalnızca iki sonucu birleştirir.
+    const ortakAdaylar = gucluAdaylar
+      .filter(x => x.teyit4s === "TAMAM")
+      .slice()
+      .sort((a, b) => {
+        const tkeA = Number.isFinite(a.tke4s) ? a.tke4s : -Infinity;
+        const tkeB = Number.isFinite(b.tke4s) ? b.tke4s : -Infinity;
+        if (tkeB !== tkeA) return tkeB - tkeA;
+        const hacimA = Number.isFinite(a.hacimOrani) ? a.hacimOrani : -Infinity;
+        const hacimB = Number.isFinite(b.hacimOrani) ? b.hacimOrani : -Infinity;
+        return hacimB - hacimA;
       });
+    const oncelikliBes = ortakAdaylar.slice(0, 5);
 
-      if(liste) liste.textContent=
-        "BIST TARAMASI DEVAM EDİYOR\n\n"+
-        "Tamamlanan grup: "+no+" / "+gruplar+
-        "\nKontrol: "+(sonuclar.length+hatalar.length)+" / "+toplam+
-        "\nBaşarılı: "+sonuclar.length+
-        "\nHata: "+hatalar.length+
-        "\n\nSon grup: "+grup.join(", ");
+    const taramaSaati = new Date().toLocaleString(
+      "tr-TR",
+      { timeZone: "Europe/Istanbul", hour12: false }
+    );
 
-      if(bas+GRUP_BOYUTU<toplam) await bekle(GRUP_BEKLEME);
+    const enEskiVeriYasi = sonuclar.length
+      ? Math.max(...sonuclar.map(x => x.hamVeriYasi).filter(Number.isFinite))
+      : NaN;
+
+    let metin =
+      "BIST TÜM PAYLAR TARAMA RAPORU\n" +
+      "==============================\n" +
+      "Tarama: " + taramaSaati + "\n" +
+      "Kontrol: " + (sonuclar.length + hatalar.length) + " / " + toplamHisse +
+      " | Başarılı: " + sonuclar.length +
+      " | Hata: " + hatalar.length + "\n" +
+      "Liste: " + listeKaynakNotu + " | Gruplar: " + toplamGrup + " / " + toplamGrup +
+      (Number.isFinite(enEskiVeriYasi)
+        ? " | En eski Yahoo verisi: " + formatFiyat(enEskiVeriYasi) + " dk"
+        : "") +
+      "\n\n";
+
+    metin +=
+      "1. ANA SİNYAL (" + anaSinyaller.length + ")\n" +
+      "------------------------------\n";
+
+    if (anaSinyaller.length) {
+      for (const x of anaSinyaller) {
+        metin += anaSinyalSatiri(x);
+        metin +=
+          "   UYARI: Kesişim son 3 kapanmış mum içinde oluşmuş olabilir. " +
+          "Güncel görünüm zayıfsa bu tek başına alım sinyali değildir.\n";
+      }
+    } else {
+      metin += "Ana sinyal yok.\n";
     }
 
-    const guncel=sonuclar.filter(x=>x.veriGuncel);
-    const eskiVeriler=sonuclar.filter(x=>!x.veriGuncel);
+    metin +=
+      "\n2. GÜÇLÜ ADAYLAR (" + gucluAdaylar.length + ")\n" +
+      "------------------------------\n";
 
-    const ana=guncel.filter(x=>siniflandir(x)==="ANA SİNYAL");
-    const guclu=guncel.filter(x=>siniflandir(x)==="GÜÇLÜ ADAY");
-    const takip=guncel.filter(x=>siniflandir(x)==="TAKİP LİSTESİ");
-    const zayif=guncel.filter(x=>siniflandir(x)==="ZAYIF");
-
-    const tam=guncel.filter(x=>x.teyit4s==="TAMAM");
-    const bekleyen=guncel.filter(x=>x.teyit4s==="BEKLİYOR");
-    const zayif4=guncel.filter(x=>x.teyit4s==="ZAYIF");
-    const yok4=guncel.filter(x=>x.teyit4s==="VERİ YETERSİZ");
-
-    const saat=new Date().toLocaleString("tr-TR",{
-      timeZone:"Europe/Istanbul",hour12:false
-    });
-
-    const yaslar=sonuclar.filter(x=>Number.isFinite(x.hamVeriYasi));
-    const enEskiKayit=yaslar.length?
-      yaslar.reduce((a,b)=>a.hamVeriYasi>b.hamVeriYasi?a:b):null;
-
-    let metin="BIST TÜM PAYLAR TARAMA RAPORU\n"+
-      "==============================\n"+
-      "Tarama: "+saat+
-      "\nKontrol: "+(sonuclar.length+hatalar.length)+" / "+toplam+
-      " | Başarılı: "+sonuclar.length+
-      " | Hata: "+hatalar.length+
-      "\nListe: "+listeKaynakNotu+
-      " | Gruplar: "+gruplar+" / "+gruplar+
-      "\nGÜNCEL VERİ: "+guncel.length+
-      " | ESKİ VERİ: "+eskiVeriler.length+
-      " | Veri sınırı: 7 gün";
-
-    if(enEskiKayit){
-      metin+="\nEn eski Yahoo verisi: "+
-        formatDakika(enEskiKayit.hamVeriYasi)+
-        " ("+enEskiKayit.sembol+")";
+    if (gucluAdaylar.length) {
+      for (const x of gucluAdaylar) {
+        metin += gucluAdaySatiri(x);
+      }
+    } else {
+      metin += "Tüm güçlü aday koşullarını sağlayan hisse yok.\n";
     }
 
-    metin+="\n\n1. ANA SİNYAL ("+ana.length+")\n"+
+    metin +=
+      "\n3. TAKİP LİSTESİ (" + takipListesi.length + ")\n" +
+      "------------------------------\n";
+    metin += takipListesi.length
+      ? takipListesi.map(x => x.sembol).join(", ") + "\n"
+      : "Takip hissesi yok.\n";
+
+    metin +=
+      "\n4. ZAYIF HİSSELER (" + zayifHisseler.length + ")\n" +
+      "------------------------------\n";
+    metin += zayifHisseler.length
+      ? zayifHisseler.map(x => x.sembol).join(", ") + "\n"
+      : "Zayıf hisse yok.\n";
+
+    metin +=
+      "\n5. 4 SAATLİK TEYİT\n" +
+      "------------------------------\n" +
+      "TEYİT TAMAM (" + teyitTamam.length + "): " + (teyitTamam.map(x=>x.sembol).join(", ") || "Yok") + "\n" +
+      "TEYİT BEKLİYOR (" + teyitBekleyen.length + "): " + (teyitBekleyen.map(x=>x.sembol).join(", ") || "Yok") + "\n" +
+      "ZAYIF (" + teyitZayif.length + "): " + (teyitZayif.map(x=>x.sembol).join(", ") || "Yok") + "\n" +
+      "4S VERİ YETERSİZ: " + teyitVeriYok.length + "\n";
+
+    metin +=
+      "\n6. GÜÇLÜ ADAY + 4 SAATLİK TEYİT KESİŞİMİ (" + ortakAdaylar.length + ")\n" +
       "------------------------------\n";
 
-    metin+=ana.length?ana.map(x=>x.sembol+
-      " | EMA: "+x.emaDurum+
-      " | Fiyat EMA20: "+(x.fiyatEma20Ustu?"ÜSTÜNDE":"ALTINDA")+
-      " | TKE: "+formatFiyat(x.tke)+" ("+x.tkeYon+")"+
-      " | Sinyal mumu: "+istanbulZaman(x.anaSinyalZamani)+"\n").join(""):"Ana sinyal yok.\n";
-
-    metin+="\n2. GÜÇLÜ ADAYLAR ("+guclu.length+")\n"+
-      "------------------------------\n";
-
-    metin+=guclu.length?guclu.map(x=>x.sembol+
-      " | Kapanış: "+formatFiyat(x.kapanis)+
-      " | "+x.emaDurum+
-      " | TKE: "+formatFiyat(x.tke)+" ("+x.tkeYon+")"+
-      " | Hacim: "+formatOran(x.hacimOrani)+"\n").join(""):"Güçlü aday yok.\n";
-
-    // YENİ: Takip listesinin tüm teknik değerleri ve sınıflandırma nedeni.
-    metin+="\n3. TAKİP LİSTESİ ("+takip.length+")\n"+
-      "------------------------------\n";
-    metin+=takip.length?
-      takip.map(hisseDetaySatiri).join("\n")+"\n":
-      "Takip hissesi yok.\n";
-
-    // YENİ: Zayıf listedeki hisselerin tüm teknik değerleri ve nedenleri.
-    metin+="\n4. ZAYIF HİSSELER ("+zayif.length+")\n"+
-      "------------------------------\n";
-    metin+=zayif.length?
-      zayif.map(hisseDetaySatiri).join("\n")+"\n":
-      "Zayıf hisse yok.\n";
-
-    metin+="\n5. 4 SAATLİK TEYİT\n"+
-      "------------------------------\n"+
-      "TEYİT TAMAM ("+tam.length+"): "+
-      (tam.map(x=>x.sembol).join(", ")||"Yok")+"\n"+
-      "TEYİT BEKLİYOR ("+bekleyen.length+"): "+
-      (bekleyen.map(x=>x.sembol).join(", ")||"Yok")+"\n"+
-      "ZAYIF ("+zayif4.length+"): "+
-      (zayif4.map(x=>x.sembol).join(", ")||"Yok")+"\n"+
-      "4S VERİ YETERSİZ: "+yok4.length+"\n";
-
-    metin+="\n6. ESKİ VERİLER - SİNYAL DIŞI ("+
-      eskiVeriler.length+")\n"+
-      "------------------------------\n";
-
-    metin+=eskiVeriler.length?
-      eskiVeriler.sort((a,b)=>b.hamVeriYasi-a.hamVeriYasi).map(x=>
-        x.sembol+" | Veri yaşı: "+formatDakika(x.hamVeriYasi)+
-        " | Son Yahoo zamanı: "+istanbulZaman(x.sonHamZaman)+"\n"
-      ).join(""):"7 günden eski veri bulunmadı.\n";
-
-    if(hatalar.length){
-      metin+="\n7. ANALİZ HATALARI ("+hatalar.length+")\n"+
-        "------------------------------\n"+
-        hatalar.join("\n")+"\n";
+    if (ortakAdaylar.length) {
+      metin += "ÖNCELİKLİ İNCELEME (EN FAZLA 5):\n";
+      for (const x of oncelikliBes) {
+        metin += x.sembol +
+          " | 4S TKE: " + formatFiyat(x.tke4s) +
+          " (" + x.tkeYon4s + ") | Saatlik hacim: " + formatOran(x.hacimOrani) + "\n";
+      }
+      metin += "\nKESİŞİMDEKİ TÜM HİSSELER: " +
+        ortakAdaylar.map(x => x.sembol).join(", ") + "\n";
+      metin += "Sıralama: 4 saatlik TKE yüksekten düşüğe; eşitlikte saatlik hacim oranı.\n";
+    } else {
+      metin += "Hem güçlü aday hem 4 saatlik teyidi TAMAM olan hisse yok.\n";
     }
 
-    metin+="\n==============================\n"+
-      "NOT: 7 günden eski veriler sinyal ve aday listelerine alınmaz.\n"+
-      "Bu liste teknik ön elemedir, alım-satım talimatı değildir.\n"+
-      "4 saatlik teyit saatlik mumlardan oluşturulmuştur.\n"+
-      "Yahoo Finance verileri gecikmeli olabilir.\n"+
-      "Veri alınamayan hisseler sinyal listesine dahil edilmemiştir.\n";
+    if (hatalar.length) {
+      metin +=
+        "\nANALİZ HATALARI (" + hatalar.length + ")\n" +
+        "------------------------------\n" +
+        hatalar.join("\n") + "\n";
+    }
 
-    if(liste) liste.textContent=metin;
+    if (sonuclar.length === 0) {
+      metin +=
+        "\nHiçbir hisse analiz edilemedi. Veri bağlantısını kontrol edin.\n";
+    }
+
+    metin +=
+      "\n==============================\n" +
+      "NOT: Bu liste teknik ön elemedir, alım-satım talimatı değildir.\n" +
+      "4 saatlik teyit saatlik mumlardan oluşturulmuştur; teyit tamamı da alım talimatı değildir.\n" +
+      "Yahoo Finance verileri gecikmeli olabilir.\n";
+
+    if (liste) liste.textContent = metin;
     console.log(metin);
     return sonuclar;
 
-  }finally{
-    window.taramaDevamEdiyor=false;
-    if(buton){
-      buton.disabled=false;
-      buton.textContent="TARAMAYI BAŞLAT";
+  } finally {
+    window.taramaDevamEdiyor = false;
+    if (buton) {
+      buton.disabled = false;
+      buton.textContent = "TARAMAYI BAŞLAT";
     }
   }
 }
 
-window.bistTarama=bistTarama;
-window.hisseAnaliz=hisseAnaliz;
+window.bistTarama = bistTarama;
+window.hisseAnaliz = hisseAnaliz;
